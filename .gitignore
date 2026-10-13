@@ -16,4 +16,5 @@ RealData/
 configs/workspace.local.yaml
 local/
 tmp/
+reviewer_station_removal_test/
 *.egg-info/

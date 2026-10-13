@@ -875,6 +875,7 @@ def make_vespagram(
     show: bool = True,
     metadata_format: str = "distbaz",
     root_order: float = 1.0,
+    vector_plot: bool = False,
 ) -> np.ndarray:
     """Calculate and optionally plot a conventional delay-and-stack vespagram.
 
@@ -883,7 +884,8 @@ def make_vespagram(
     receiver arrays so station coordinates are not reconstructed from a
     long-distance back-azimuth. Source arrays use ``distbaz``. ``root_order``
     selects a sign-preserving nth-root stack; 1 is the conventional linear
-    stack and 4 is the common fourth-root stack.
+    stack and 4 is the common fourth-root stack. Set ``vector_plot=True`` to
+    render the vespagram as a vector mesh for PDF or SVG output.
     """
 
     import matplotlib.pyplot as plt
@@ -979,11 +981,19 @@ def make_vespagram(
         vmin = -vmax
     else:
         vmin, vmax = clim
-        
-    image = ax.imshow(
-        vespa, aspect="auto", extent=extent, origin="lower",
-        cmap="seismic", vmin=vmin, vmax=vmax,
-    )
+
+    if vector_plot:
+        image = ax.pcolormesh(
+            time, slow_grid, vespa, shading="auto",
+            cmap="seismic", vmin=vmin, vmax=vmax,
+        )
+        ax.set_xlim(time[0], time[-1])
+        ax.set_ylim(slow_grid[0], slow_grid[-1])
+    else:
+        image = ax.imshow(
+            vespa, aspect="auto", extent=extent, origin="lower",
+            cmap="seismic", vmin=vmin, vmax=vmax,
+        )
     ax.figure.colorbar(image, ax=ax, label="Amplitude")
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Slowness (s/deg)")
@@ -1007,6 +1017,7 @@ def make_tapir_dataset_vespagram(
     title=None,
     show=True,
     root_order=1.0,
+    vector_plot=False,
 ):
     """Load a standard TAPIR-prepared dataset and make its vespagram.
 
@@ -1025,6 +1036,8 @@ def make_tapir_dataset_vespagram(
         Optional ``(fmin, fmax)`` in Hz.
     root_order : float
         Stack order. Use 1 for a linear stack or 4 for a fourth-root stack.
+    vector_plot : bool
+        Draw with a vector mesh for fully vector PDF or SVG output.
 
     Returns
     -------
@@ -1108,6 +1121,7 @@ def make_tapir_dataset_vespagram(
         show=show,
         metadata_format=metadata_format,
         root_order=root_order,
+        vector_plot=vector_plot,
     )
     return vespa, time, slow_grid
 

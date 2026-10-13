@@ -1,10 +1,9 @@
 import matplotlib
 import numpy as np
 
-from vespainv.utils import make_tapir_dataset_vespagram, make_vespagram
-
-
 matplotlib.use("Agg")
+
+from vespainv.utils import make_tapir_dataset_vespagram, make_vespagram
 
 
 def test_make_vespagram_does_not_modify_waveforms():
@@ -51,6 +50,34 @@ def test_make_vespagram_supports_fourth_root_stack():
 
     assert result.shape == (2, 21)
     assert np.all(np.isfinite(result))
+
+
+def test_make_vespagram_supports_vector_plot():
+    import matplotlib.pyplot as plt
+
+    time = np.linspace(0.0, 2.0, 21)
+    waveforms = np.column_stack([np.sin(time), np.cos(time)])
+    figure, ax = plt.subplots()
+
+    result = make_vespagram(
+        waveforms,
+        time,
+        np.array([[10.0, 180.0], [11.0, 180.0]]),
+        refLat=10.5,
+        refLon=0.0,
+        srcLat=0.0,
+        srcLon=0.0,
+        slow_grid=np.array([0.0, 1.0]),
+        refBaz=0.0,
+        srcArray=False,
+        vector_plot=True,
+        ax=ax,
+        show=False,
+    )
+
+    assert result.shape == (2, 21)
+    assert len(ax.collections) == 1
+    plt.close(figure)
 
 
 def test_make_tapir_dataset_vespagram_loads_standard_dataset(tmp_path):

@@ -12,3 +12,4 @@ release. Changes currently target version 0.1.0.
 - Incremental likelihood and phase-count diagnostics.
 - Run summary command and self-contained example datasets.
 - Stable covariance whitening and configurable free-surface velocities.
+- Optional vector rendering for publication-quality vespagram PDF and SVG output.

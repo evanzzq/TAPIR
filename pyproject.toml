@@ -7,7 +7,7 @@ name = "tapir"
 version = "0.1.0"
 description = "Transdimensional array-based phase inversion research toolbox"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 license = { file = "LICENSE" }
 keywords = ["seismology", "array processing", "Bayesian inversion", "RJMCMC"]
 authors = [
