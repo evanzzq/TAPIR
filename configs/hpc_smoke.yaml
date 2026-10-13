@@ -1,0 +1,38 @@
+defaults:
+  data_root: ../examples/data
+  runs_root: ../local/example_runs
+  stfshape: "dGaussian"
+  is3c: true
+  comp: "Z"
+  sigma: 0.05
+  num_chains: 6
+  totalSteps: 20
+  burnInSteps: 10
+  nSaveModels: 5
+  actionsPerStep: 1
+  maxN: 2
+  man_stf: true
+  ampRange: [-1.0, 1.0]
+  slwRange: [0.0, 2.0]
+  minSpace: 0.2
+  CDopt: 0
+  locDiff: false
+  distDiffRange: [-1.0, 1.0]
+  bazDiffRange: [-1.0, 1.0]
+  fitAtts: false
+  fitLoge: false
+  fitPhase: false
+  normOpt: 1
+  isMars: false
+  srcArray: false
+  pref: 0.0
+  fstVp: null
+  fstVs: null
+  ref_manual: false
+  refLat: 0.0
+  refLon: 0.0
+  refBaz: 0.0
+
+experiments:
+  - dataset: "earth_receiver_minimal"
+    runname: "hpc_smoke"

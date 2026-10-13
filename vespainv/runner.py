@@ -154,13 +154,42 @@ def _prepare_prior(is3c: bool, stf_wid: float, maxN: int, sigma: float, Utime, a
     return Prior(**kwargs)
 
 
-def _physical_cpu_count() -> int:
+def _available_cpu_count() -> int:
+    """Return the number of CPUs available for TAPIR workers.
+
+    TAPIR_MAX_WORKERS explicitly limits concurrency, e.g. for PBS jobs.
+    Without an override, preserve the previous physical-core default
+    while respecting Linux CPU affinity when available.
+    """
+    override = os.environ.get("TAPIR_MAX_WORKERS")
+
+    if override is not None:
+        try:
+            workers = int(override)
+        except ValueError as exc:
+            raise ValueError(
+                "TAPIR_MAX_WORKERS must be a positive integer."
+            ) from exc
+
+        if workers < 1:
+            raise ValueError(
+                "TAPIR_MAX_WORKERS must be a positive integer."
+            )
+
+        return workers
+
+    physical = os.cpu_count() or 1
+
     try:
         import psutil
-
-        return psutil.cpu_count(logical=False) or mp.cpu_count()
+        physical = psutil.cpu_count(logical=False) or physical
     except ImportError:
-        return mp.cpu_count()
+        pass
+
+    if hasattr(os, "sched_getaffinity"):
+        physical = min(physical, len(os.sched_getaffinity(0)))
+
+    return max(1, physical)
 
 
 def _validate_run_parameters(params: dict) -> None:
@@ -317,15 +346,28 @@ def run_experiment(params: dict) -> None:
         with open(bk_path, "wb") as handle:
             pickle.dump(bookkeeping, handle)
 
-    cpu_cores = _physical_cpu_count()
-    print(f"Detected {cpu_cores} physical cores.")
-    if num_chains >= 2:
-        threads_per_chain = max(1, cpu_cores // min(num_chains, cpu_cores))
-        os.environ["OMP_NUM_THREADS"] = str(threads_per_chain)
-        os.environ["MKL_NUM_THREADS"] = str(threads_per_chain)
-        print(f"Setting {threads_per_chain} threads per chain to avoid oversubscription.")
-    else:
-        print("Single chain: allow full multithreading.")
+    available_workers = _available_cpu_count()
+    concurrent_chains = min(num_chains, available_workers)
+
+    print(f"Available TAPIR workers: {available_workers}")
+    print(f"Total MCMC chains: {num_chains}")
+    print(f"Maximum concurrent chains: {concurrent_chains}")
+
+    # Set default numerical-library threading only if not configured externally.
+    # For HPC jobs, set these before launching Python.
+    threads_per_chain = max(1, available_workers // concurrent_chains)
+
+    os.environ.setdefault("OMP_NUM_THREADS", str(threads_per_chain))
+    os.environ.setdefault("MKL_NUM_THREADS", str(threads_per_chain))
+    os.environ.setdefault("OPENBLAS_NUM_THREADS", str(threads_per_chain))
+    os.environ.setdefault("NUMEXPR_NUM_THREADS", str(threads_per_chain))
+
+    print(
+        "Numerical threads per chain: "
+        f"OMP={os.environ['OMP_NUM_THREADS']}, "
+        f"MKL={os.environ['MKL_NUM_THREADS']}, "
+        f"OPENBLAS={os.environ['OPENBLAS_NUM_THREADS']}"
+    )
 
     exp_vars = {
         "U_obs": U_obs,
@@ -357,7 +399,7 @@ def run_experiment(params: dict) -> None:
         return
 
     ctx = mp.get_context("spawn")
-    batch_size = cpu_cores
+    batch_size = concurrent_chains
     total_batches = (num_chains + batch_size - 1) // batch_size
     for batch_idx in range(total_batches):
         start_chain = batch_idx * batch_size

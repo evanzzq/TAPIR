@@ -1,0 +1,52 @@
+#!/bin/bash
+#
+#PBS -N tapir_terra
+#PBS -d /home/ziqi/projects/TAPIR
+#PBS -o tapir_terra.out
+#PBS -e tapir_terra.err
+#PBS -l nodes=1:t3:ppn=4
+#PBS -l walltime=04:00:00
+
+set -euo pipefail
+
+cd /home/ziqi/projects/TAPIR
+
+# Activate Python environment
+source /home/ziqi/miniforge3/etc/profile.d/conda.sh
+conda activate tapir
+
+# Read processor allocation from Torque
+if [[ ! -f "${PBS_NODEFILE:-}" ]]; then
+    echo "ERROR: PBS_NODEFILE is missing."
+    exit 1
+fi
+
+# This script supports a single-node allocation only
+node_count=$(sort -u "$PBS_NODEFILE" | wc -l)
+if [[ "$node_count" -ne 1 ]]; then
+    echo "ERROR: TAPIR multiprocessing requires one node."
+    exit 1
+fi
+
+export TAPIR_MAX_WORKERS=$(wc -l < "$PBS_NODEFILE")
+
+# Keep one numerical-library thread per chain
+export OMP_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+export MPLBACKEND=Agg
+
+echo "================================"
+echo "Job ID: $PBS_JOBID"
+echo "Node: $(hostname)"
+echo "Allocated CPUs: $TAPIR_MAX_WORKERS"
+echo "Git commit: $(git rev-parse HEAD)"
+echo "Python: $(which python)"
+echo "Started: $(date)"
+echo "================================"
+
+# Replace with your actual inversion configuration
+tapir run --config configs/terrawulf_run.yaml
+
+echo "Finished: $(date)"
