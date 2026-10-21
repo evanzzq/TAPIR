@@ -4,10 +4,13 @@
 #PBS -d /home/ziqi/projects/TAPIR
 #PBS -o tapir_terra.out
 #PBS -e tapir_terra.err
-#PBS -l nodes=1:t3:ppn=4
-#PBS -l walltime=04:00:00
+#PBS -l nodes=1:t3:ppn=8
+#PBS -l walltime=72:00:00
 
 set -euo pipefail
+
+# Check that an experiment configuration was supplied
+: "${TAPIR_CONFIG:?Set TAPIR_CONFIG when submitting the job}"
 
 cd /home/ziqi/projects/TAPIR
 
@@ -47,6 +50,6 @@ echo "Started: $(date)"
 echo "================================"
 
 # Replace with your actual inversion configuration
-tapir run --config configs/terrawulf_run.yaml
+tapir run --config "$TAPIR_CONFIG"
 
 echo "Finished: $(date)"
