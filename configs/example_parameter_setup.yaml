@@ -25,6 +25,8 @@ defaults:
   distDiffRange: [-1.0, 1.0]
   bazDiffRange: [-1.0, 1.0]
   fitAtts: false
+  # attsRange: [0.0, 4.0]  # t* prior range (s), used when fitAtts is true (3C default (1, 1) fixes t* = 1 s)
+  # attsStd: 0.4           # t* proposal step (s); default is a fraction of the range
   fitLoge: false
   fitPhase: false
   normOpt: 1

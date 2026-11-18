@@ -13,3 +13,6 @@ release. Changes currently target version 0.1.0.
 - Run summary command and self-contained example datasets.
 - Stable covariance whitening and configurable free-surface velocities.
 - Optional vector rendering for publication-quality vespagram PDF and SVG output.
+- t* operator is now Hermitian: attenuated phases keep their full amplitude
+  (previously halved) and t* = 0 is the identity. Optional `attsRange` and
+  `attsStd` run settings set the t* prior.

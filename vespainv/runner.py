@@ -138,7 +138,8 @@ def _prepare_stf(data_dir: str, man_stf: bool, stfshape: str, U_obs, is3c, dt, b
     return _filter_stf(stf, bandpass_hz)
 
 
-def _prepare_prior(is3c: bool, stf_wid: float, maxN: int, sigma: float, Utime, ampRange, slwRange, distDiffRange, bazDiffRange):
+def _prepare_prior(is3c: bool, stf_wid: float, maxN: int, sigma: float, Utime, ampRange, slwRange, distDiffRange, bazDiffRange,
+                   attsRange=None, attsStd=None):
     kwargs = {
         "minSpace": stf_wid,
         "maxN": maxN,
@@ -149,6 +150,11 @@ def _prepare_prior(is3c: bool, stf_wid: float, maxN: int, sigma: float, Utime, a
         "distDiffRange": distDiffRange,
         "bazDiffRange": bazDiffRange,
     }
+    # optional t* prior; otherwise the Prior/Prior3c defaults apply (Prior3c's (1, 1) fixes t* at 1 s)
+    if attsRange is not None:
+        kwargs["attsRange"] = tuple(attsRange)
+    if attsStd is not None:
+        kwargs["attsStd"] = attsStd
     if is3c:
         return Prior3c(**kwargs)
     return Prior(**kwargs)
@@ -297,7 +303,8 @@ def run_experiment(params: dict) -> None:
     stf_wid = minSpace if minSpace is not None else est_stf_wid(stf)
 
     prior = _prepare_prior(
-        is3c, stf_wid, maxN, sigma, Utime, ampRange, slwRange, distDiffRange, bazDiffRange
+        is3c, stf_wid, maxN, sigma, Utime, ampRange, slwRange, distDiffRange, bazDiffRange,
+        attsRange=params.get("attsRange"), attsStd=params.get("attsStd"),
     )
     save_dir = os.path.join(runs_root, data_name, runname)
     os.makedirs(save_dir, exist_ok=True)

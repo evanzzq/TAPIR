@@ -237,28 +237,23 @@ def create_U_from_model_3c_freqdomain(
 
     return U_model
 
+def _tstar_operator(freqs: np.ndarray, t_star) -> np.ndarray:
+    """
+    Causal t* operator with a 1 Hz reference frequency:
+    exp(-pi |f| t*) * exp(2i f t* ln(|f| / 1 Hz)).
+
+    The operator is Hermitian (the f < 0 half is the conjugate of the f > 0 half), so a real
+    waveform stays real at its full amplitude, and it is the identity at t* = 0.
+    t_star may be an array that broadcasts against freqs, e.g. shape (n_phases, 1).
+    """
+    abs_f = np.abs(freqs)
+    log_f = np.log(np.where(abs_f > 0, abs_f, 1.0))
+    return np.exp(-np.pi * abs_f * t_star + 2j * freqs * t_star * log_f)
+
 def tstar_conv(wvfm, time, t_star):
-    dt = time[1] - time[0]
-    N = len(wvfm)
-    
-    # Frequency array scaled by t*
-    f = fftfreq(N, dt) * t_star
-    f0 = 1.0 * t_star  # Reference frequency (1 Hz scaled by t*)
-    f_f0 = f / f0
-
-    # Fourier transform
-    W = fft(wvfm)
-    
-    # Attenuation operator (careful with log and divide-by-zero)
-    W_attenuated = W * np.exp(-np.pi * f) * np.power(
-        f_f0, 1j * 2 * f, where=f_f0 > 0, out=np.zeros_like(f_f0, dtype=complex)
-        )
-    W_attenuated[0] = 0  # Zero the DC component
-
-    # Inverse FFT
-    wvfm_attenuated = ifft(W_attenuated).real
-
-    return wvfm_attenuated
+    """Apply t* attenuation to a real waveform sampled at `time`."""
+    freqs = fftfreq(len(wvfm), time[1] - time[0])
+    return ifft(fft(wvfm) * _tstar_operator(freqs, t_star)).real
 
 def tstar_conv_freqdomain(W: np.ndarray, freqs: np.ndarray, t_star: float) -> np.ndarray:
     """
@@ -272,18 +267,7 @@ def tstar_conv_freqdomain(W: np.ndarray, freqs: np.ndarray, t_star: float) -> np
     Returns:
     - W_attenuated: Attenuated waveform in frequency domain
     """
-    f = freqs * t_star
-    f0 = 1.0 * t_star  # reference frequency
-    f_f0 = f / f0
-
-    # Create attenuation operator
-    attenuation = np.exp(-np.pi * f) * np.power(
-        f_f0, 1j * 2 * f, where=f_f0 > 0, out=np.zeros_like(f_f0, dtype=complex)
-    )
-    W_attenuated = W * attenuation
-    W_attenuated[0] = 0  # Zero the DC component
-
-    return W_attenuated
+    return W * _tstar_operator(freqs, t_star)
 
 
 def PVH_to_ZRT(P, SV, SH, slw, a0=6.571, b0=4.1, radius=6371.):
