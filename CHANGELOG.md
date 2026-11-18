@@ -16,3 +16,6 @@ release. Changes currently target version 0.1.0.
 - t* operator is now Hermitian: attenuated phases keep their full amplitude
   (previously halved) and t* = 0 is the identity. Optional `attsRange` and
   `attsStd` run settings set the t* prior.
+- Vectorized 1C and 3C forward models: all traces and phases are evaluated
+  at once, about 10-30 times faster per call. The per-trace loop is kept for
+  source-array `locDiff`.

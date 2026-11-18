@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.fft import fft, ifft, fftfreq
+from scipy.fft import fft, ifft, fftfreq, rfft, irfft, rfftfreq
 from scipy.interpolate import interp1d
 from vespainv.model import VespaModel, Prior, Bookkeeping
 from vespainv.utils import dest_point, apply_constant_phase_shift
@@ -19,6 +19,45 @@ def _metadata_to_latlon(metadata_row, src_lat, src_lon, use_distbaz):
     return metadata_row
 
 
+def _needs_trace_loop(bookkeeping: Bookkeeping) -> bool:
+    # locDiff moves each source-array trace by its own (dist, baz) perturbation
+    return bookkeeping.locDiff and (bookkeeping.isMars or bookkeeping.srcArray)
+
+
+def _trace_offsets(metadata: np.ndarray, bookkeeping: Bookkeeping) -> np.ndarray:
+    """Offset (deg) of each trace from the reference point along the reference slowness direction."""
+    bk = bookkeeping
+    if bk.isMars or bk.srcArray:
+        # dest_point scales its arguments in place, so pass copies
+        tr_lat, tr_lon = dest_point(bk.srcLat, bk.srcLon, metadata[:, 1].astype(float), metadata[:, 0].astype(float))
+    else:
+        tr_lat, tr_lon = metadata[:, 0], metadata[:, 1]
+    dx = (((tr_lon - bk.refLon + 180.0) % 360.0) - 180.0) * np.cos(np.radians(bk.refLat))  # lon wrapping needed
+    dy = tr_lat - bk.refLat
+    sx, sy = _reference_slowness_components(1.0, bk.srcArray, bk.refBaz)
+    return sx * dx + sy * dy
+
+
+def _shifted_spectra(model, metadata, time, stf_time, stf, bookkeeping):
+    """
+    One-sided STF spectrum, frequencies, and exp(-2 pi i f (t_ij - stf_shift)) for every trace i and
+    phase j, shape (n_traces, n_phases, n_freqs). Real waveforms only need f >= 0 (rfft/irfft).
+    """
+    stf_W = rfft(np.pad(stf, (0, len(time) - len(stf)), mode='constant'))
+    freqs = rfftfreq(len(time), stf_time[1] - stf_time[0])
+    tshift = model.arr[None, :] + model.slw[None, :] * _trace_offsets(metadata, bookkeeping)[:, None]
+    return stf_W, freqs, np.exp(-2j * np.pi * freqs * (tshift[:, :, None] - stf_time[-1]))
+
+
+def _constant_phase_operator(n: int, phase_rad: np.ndarray) -> np.ndarray:
+    """apply_constant_phase_shift's factor on the rfft frequencies of an n-sample trace, one row per phase."""
+    sign = np.full(n // 2 + 1, -1.0)
+    sign[0] = 0.0  # DC
+    if n % 2 == 0:
+        sign[-1] = 0.0  # Nyquist
+    return np.exp(1j * np.asarray(phase_rad)[:, None] * sign)
+
+
 def create_U_from_model_freqdomain(
     model: VespaModel,
     metadata: np.ndarray,  # shape (n_traces, 2): [lat, lon] per row; if isMars, [dist, baz] per row
@@ -28,7 +67,33 @@ def create_U_from_model_freqdomain(
     bookkeeping: Bookkeeping
 ) -> np.ndarray:
     """
-    Forward model a synthetic seismogram from the VespaModel.
+    Forward model synthetic seismograms from the VespaModel, shape (len(time), n_traces).
+
+    Evaluates all traces and phases at once; same result as the per-trace loop
+    (_create_U_from_model_freqdomain_loop), which is still used for source-array locDiff.
+    """
+    if _needs_trace_loop(bookkeeping):
+        return _create_U_from_model_freqdomain_loop(model, metadata, time, stf_time, stf, bookkeeping)
+    if model.Nphase == 0:
+        return np.zeros((len(time), metadata.shape[0]))
+    stf_W, freqs, shifts = _shifted_spectra(model, metadata, time, stf_time, stf, bookkeeping)
+    weights = model.amp[:, None] * (
+        _tstar_operator(freqs, model.atts[:, None]) if bookkeeping.fitAtts else np.ones(len(freqs))
+    )
+    trace_W = stf_W * np.einsum("pf,tpf->tf", weights, shifts)
+    return irfft(trace_W, n=len(time), axis=1).T
+
+
+def _create_U_from_model_freqdomain_loop(
+    model: VespaModel,
+    metadata: np.ndarray,  # shape (n_traces, 2): [lat, lon] per row; if isMars, [dist, baz] per row
+    time: np.ndarray,
+    stf_time: np.ndarray,
+    stf: np.ndarray,
+    bookkeeping: Bookkeeping
+) -> np.ndarray:
+    """
+    Forward model a synthetic seismogram from the VespaModel, one trace and phase at a time.
 
     Parameters:
     - model: VespaModel with arr, slw, amp, distDiff, bazDiff
@@ -103,8 +168,6 @@ def create_U_from_model_freqdomain(
     return U_model
 
 
-import numpy as np
-from scipy.fft import fft, ifft, fftfreq
 def create_U_from_model_3c_freqdomain(
     model: VespaModel,
     metadata: np.ndarray,  # shape (n_traces, 2): [lat, lon] per row; if isMars, [dist, baz] per row
@@ -114,7 +177,52 @@ def create_U_from_model_3c_freqdomain(
     bookkeeping: Bookkeeping
 ):
     """
-    Forward model a synthetic seismogram from the VespaModel.
+    Forward model 3C synthetic seismograms from the VespaModel3c, shape (len(time), n_traces, 3) as ZRT.
+
+    Evaluates all traces and phases at once; same result as the per-trace loop
+    (_create_U_from_model_3c_freqdomain_loop), which is still used for source-array locDiff.
+    """
+    bk = bookkeeping
+    if _needs_trace_loop(bk):
+        return _create_U_from_model_3c_freqdomain_loop(model, metadata, time, stf_time, stf, bk)
+    if model.Nphase == 0:
+        return np.zeros((len(time), metadata.shape[0], 3))
+    stf_W, freqs, shifts = _shifted_spectra(model, metadata, time, stf_time, stf, bk)
+
+    # PVH amplitudes and free-surface coefficients (absolute slowness) per phase
+    is_p = model.wvtype == 1
+    P = np.where(is_p, model.amp, 0.0)
+    SV = np.where(is_p, 0.0, model.amp * np.cos(np.radians(model.azi)))
+    SH = np.where(is_p, 0.0, model.amp * np.sin(np.radians(model.azi)))
+    zp, zsv, rp, rsv = _free_surface_coefficients(
+        model.slw + bk.pref, bk.fstVp, bk.fstVs, 3389.5 if bk.isMars else 6371.
+    )
+    weights = np.array([zp * P + zsv * SV, rp * P + rsv * SV, 2 * SH])[:, :, None]  # (3, n_phases, 1)
+    if bk.fitAtts:
+        weights = weights * _tstar_operator(freqs, np.where(is_p, 0.25, 1.0)[:, None] * model.atts[:, None])
+    if bk.fitPhase:
+        ph_vh, ph_hh = np.radians(model.ph_vh), np.radians(model.ph_hh)
+        n = len(time)
+        weights = weights * np.stack([
+            np.ones((model.Nphase, len(freqs))),
+            _constant_phase_operator(n, ph_vh),
+            _constant_phase_operator(n, ph_hh + ph_vh),
+        ])
+    weights = np.broadcast_to(weights, (3, model.Nphase, len(freqs)))
+    W = stf_W * np.einsum("cpf,tpf->ctf", weights, shifts)
+    return irfft(W, n=len(time), axis=2).transpose(2, 1, 0)
+
+
+def _create_U_from_model_3c_freqdomain_loop(
+    model: VespaModel,
+    metadata: np.ndarray,  # shape (n_traces, 2): [lat, lon] per row; if isMars, [dist, baz] per row
+    time: np.ndarray,
+    stf_time: np.ndarray,
+    stf: np.ndarray,
+    bookkeeping: Bookkeeping
+):
+    """
+    Forward model a 3C synthetic seismogram from the VespaModel, one trace and phase at a time.
 
     Parameters:
     - model: VespaModel3c with arr, slw, amp, dip, azi, ph_hh, ph_vh, atts, svfac, wvtype, distDiff, bazDiff
@@ -270,10 +378,25 @@ def tstar_conv_freqdomain(W: np.ndarray, freqs: np.ndarray, t_star: float) -> np
     return W * _tstar_operator(freqs, t_star)
 
 
+def _free_surface_coefficients(slw, a0, b0, radius):
+    """
+    Free-surface PVH -> ZRT coefficients (Z_P, Z_SV, R_P, R_SV) for slowness slw in s/deg
+    (float or array); T = 2 SH. Z polarity is reversed.
+    """
+    p = slw / (2.0 * np.pi * radius / 360.0)  # s/deg to s/km
+    qa0 = np.sqrt(a0**(-2) - p**2)
+    qb0 = np.sqrt(b0**(-2) - p**2)
+
+    denom = (b0**(-2) - p**2)**2 + 4 * p**2 * qa0 * qb0
+    C1 = 2 * b0**(-2) * (b0**(-2) - p**2) / denom
+    C2 = 4 * b0**(-2) * qa0 * qb0 / denom
+    return a0 * qa0 * C1, -b0 * p * C2, a0 * p * C2, b0 * qb0 * C1
+
+
 def PVH_to_ZRT(P, SV, SH, slw, a0=6.571, b0=4.1, radius=6371.):
     """
     Transform PVH components to ZRT components.
-    
+
     Parameters:
     - P, SV, SH: 1D numpy arrays of the same length
     - a0, b0: float (P and S wave velocities)
@@ -282,14 +405,7 @@ def PVH_to_ZRT(P, SV, SH, slw, a0=6.571, b0=4.1, radius=6371.):
     Returns:
     - Z, R, T: numpy arrays
     """
-    kilometers_per_degree = 2.0 * np.pi * radius / 360.0
-    slw /= kilometers_per_degree  # s/deg to s/km
-    qa0 = np.sqrt(a0**(-2) - slw**2)
-    qb0 = np.sqrt(b0**(-2) - slw**2)
-
-    denom = (b0**(-2) - slw**2)**2 + 4 * slw**2 * qa0 * qb0
-    C1 = 2 * b0**(-2) * (b0**(-2) - slw**2) / denom
-    C2 = 4 * b0**(-2) * qa0 * qb0 / denom
+    zp, zsv, rp, rsv = _free_surface_coefficients(slw, a0, b0, radius)
 
     # Ensure inputs are arrays
     P = np.asarray(P)
@@ -301,8 +417,8 @@ def PVH_to_ZRT(P, SV, SH, slw, a0=6.571, b0=4.1, radius=6371.):
 
     # Construct transformation matrix
     RMat = np.array([
-        [a0 * qa0 * C1, -b0 * slw * C2, 0], # reverse Z polarity
-        [ a0 * slw * C2, b0 * qb0 * C1, 0],
+        [zp, zsv, 0], # reverse Z polarity
+        [rp, rsv, 0],
         [0, 0, 2]
     ])
 
