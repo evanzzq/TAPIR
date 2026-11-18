@@ -138,8 +138,38 @@ def _prepare_stf(data_dir: str, man_stf: bool, stfshape: str, U_obs, is3c, dt, b
     return _filter_stf(stf, bandpass_hz)
 
 
+_PRIOR_RUN_OPTIONS = (
+    "attsRange", "attsStd", "arrStd", "slwStd", "ampStd", "aziStd", "logeStd", "logeRange",
+)
+
+
+def _prior_overrides(is3c, options):
+    """Validate optional YAML prior settings; omitted values retain class defaults."""
+    overrides = {}
+    for name in _PRIOR_RUN_OPTIONS:
+        value = options.get(name)
+        if value is None:
+            continue
+        if name.endswith("Range"):
+            bounds = np.asarray(value, dtype=float)
+            if (bounds.shape != (2,) or not np.all(np.isfinite(bounds))
+                    or bounds[0] > bounds[1]
+                    or (name == "attsRange" and bounds[0] < 0)):
+                raise ValueError(f"{name} must be two finite ordered bounds (t* must be nonnegative).")
+            value = tuple(bounds)
+        else:
+            if isinstance(value, bool) or not np.isscalar(value):
+                raise ValueError(f"{name} must be finite and nonnegative.")
+            value = float(value)
+            if not np.isfinite(value) or value < 0:
+                raise ValueError(f"{name} must be finite and nonnegative.")
+        if name != "aziStd" or is3c:
+            overrides[name] = value
+    return overrides
+
+
 def _prepare_prior(is3c: bool, stf_wid: float, maxN: int, sigma: float, Utime, ampRange, slwRange, distDiffRange, bazDiffRange,
-                   attsRange=None, attsStd=None):
+                   attsRange=None, attsStd=None, **proposal_options):
     kwargs = {
         "minSpace": stf_wid,
         "maxN": maxN,
@@ -150,17 +180,28 @@ def _prepare_prior(is3c: bool, stf_wid: float, maxN: int, sigma: float, Utime, a
         "distDiffRange": distDiffRange,
         "bazDiffRange": bazDiffRange,
     }
-    # optional t* prior; otherwise the Prior/Prior3c defaults apply (Prior3c's (1, 1) fixes t* at 1 s)
-    if attsRange is not None:
-        kwargs["attsRange"] = tuple(attsRange)
-    if attsStd is not None:
-        kwargs["attsStd"] = attsStd
+    options = dict(proposal_options, attsRange=attsRange, attsStd=attsStd)
+    kwargs.update(_prior_overrides(is3c, options))
     if is3c:
         return Prior3c(**kwargs)
     return Prior(**kwargs)
 
 
-def _available_cpu_count() -> int:
+def _validate_max_procs(max_procs):
+    if max_procs is not None and (
+        isinstance(max_procs, bool) or not isinstance(max_procs, int) or max_procs < 1
+    ):
+        raise ValueError("max_procs must be a positive integer.")
+
+
+def _available_cpu_count(max_procs=None) -> int:
+    """Apply the YAML cap in addition to the existing HPC worker limit."""
+    _validate_max_procs(max_procs)
+    available = _detected_worker_count()
+    return min(available, max_procs) if max_procs is not None else available
+
+
+def _detected_worker_count() -> int:
     """Return the number of CPUs available for TAPIR workers.
 
     TAPIR_MAX_WORKERS explicitly limits concurrency, e.g. for PBS jobs.
@@ -199,6 +240,8 @@ def _available_cpu_count() -> int:
 
 
 def _validate_run_parameters(params: dict) -> None:
+    _validate_max_procs(params.get("max_procs"))
+    _prior_overrides(params.get("is3c", False), params)
     total_steps = int(params["totalSteps"])
     burn_in_steps = int(params["burnInSteps"])
     n_save_models = int(params["nSaveModels"])
@@ -304,7 +347,7 @@ def run_experiment(params: dict) -> None:
 
     prior = _prepare_prior(
         is3c, stf_wid, maxN, sigma, Utime, ampRange, slwRange, distDiffRange, bazDiffRange,
-        attsRange=params.get("attsRange"), attsStd=params.get("attsStd"),
+        **{name: params.get(name) for name in _PRIOR_RUN_OPTIONS},
     )
     save_dir = os.path.join(runs_root, data_name, runname)
     os.makedirs(save_dir, exist_ok=True)
@@ -353,7 +396,7 @@ def run_experiment(params: dict) -> None:
         with open(bk_path, "wb") as handle:
             pickle.dump(bookkeeping, handle)
 
-    available_workers = _available_cpu_count()
+    available_workers = _available_cpu_count(params.get("max_procs"))
     concurrent_chains = min(num_chains, available_workers)
 
     print(f"Available TAPIR workers: {available_workers}")

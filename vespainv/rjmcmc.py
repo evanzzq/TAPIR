@@ -138,10 +138,13 @@ def compute_log_likelihood_L1(U_obs, U_model, CD_sqrt_inv=None, sigma=None):
 def birth(model, prior):
     model_new = copy.deepcopy(model)
     if model_new.Nphase < prior.maxN:
+        try:
+            arrival = generate_arr(prior.timeRange, model_new.arr, prior.minSpace)
+        except ValueError:
+            # A crowded time window is an unsuccessful proposal.
+            return model_new, False
         model_new.Nphase += 1
-        model_new.arr = np.append(
-            model_new.arr, generate_arr(prior.timeRange, model_new.arr, prior.minSpace)
-            )
+        model_new.arr = np.append(model_new.arr, arrival)
         model_new.slw = np.append(model_new.slw, np.random.uniform(prior.slwRange[0], prior.slwRange[1]))
         model_new.amp = np.append(model_new.amp, np.random.uniform(prior.ampRange[0], prior.ampRange[1]))
         model_new.atts = np.append(model_new.atts, np.random.uniform(prior.attsRange[0], prior.attsRange[1]))
@@ -153,10 +156,13 @@ def birth(model, prior):
 def birth3c(model, prior):
     model_new = copy.deepcopy(model)
     if model_new.Nphase < prior.maxN:
+        try:
+            arrival = generate_arr(prior.timeRange, model_new.arr, prior.minSpace)
+        except ValueError:
+            # A crowded time window is an unsuccessful proposal.
+            return model_new, False
         model_new.Nphase += 1
-        model_new.arr = np.append(
-            model_new.arr, generate_arr(prior.timeRange, model_new.arr, prior.minSpace)
-            )
+        model_new.arr = np.append(model_new.arr, arrival)
         model_new.slw = np.append(model_new.slw, np.random.uniform(prior.slwRange[0], prior.slwRange[1]))
         model_new.amp = np.append(model_new.amp, np.random.uniform(prior.ampRange[0], prior.ampRange[1]))
         model_new.azi = np.append(model_new.azi, np.random.uniform(prior.aziRange[0], prior.aziRange[1]))

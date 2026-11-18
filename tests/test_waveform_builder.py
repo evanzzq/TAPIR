@@ -105,3 +105,46 @@ def test_tstar_attenuates_delays_and_broadens():
     y = tstar_conv(x, t, 1.0)
     assert y.max() < x.max()
     assert t[np.argmax(y)] > t[np.argmax(x)]
+
+
+@pytest.mark.parametrize("n", [15, 16])
+def test_tstar_is_real_for_broadband_inputs(n):
+    rng = np.random.default_rng(45)
+    x = rng.normal(size=n)
+    time = np.arange(n) * 0.2
+    y = ifft(tstar_conv_freqdomain(fft(x), fftfreq(n, 0.2), 0.1))
+    np.testing.assert_allclose(y.imag, 0.0, atol=1e-14)
+    np.testing.assert_allclose(y.real, tstar_conv(x, time, 0.1), atol=1e-14)
+    np.testing.assert_allclose(tstar_conv(x, time, 0.0), x, atol=1e-14)
+    assert y.real.sum() == pytest.approx(x.sum())
+
+
+def test_tstar_nyquist_uses_real_projection():
+    n, dt, t_star = 16, 0.2, 0.1
+    x = (-1.0) ** np.arange(n)
+    fnyq = 0.5 / dt
+    expected = np.exp(-np.pi * fnyq * t_star) * np.cos(2 * fnyq * t_star * np.log(fnyq))
+    y = ifft(tstar_conv_freqdomain(fft(x), fftfreq(n, dt), t_star))
+    np.testing.assert_allclose(y, x * expected, atol=1e-14)
+
+
+@pytest.mark.parametrize("is3c", [False, True])
+@pytest.mark.parametrize("n", [15, 16])
+def test_broadband_forward_matches_loop(is3c, n):
+    rng = np.random.default_rng(87)
+    metadata, bk = _geometry("receiver", 3, rng, fitAtts=True, fitPhase=True)
+    time = np.arange(n) * 0.2
+    stf_time = np.arange(-3, 4) * 0.2
+    stf = rng.normal(size=7)
+    common = dict(Nphase=2, Ntrace=3, arr=np.array([0.13, 0.77]), slw=np.array([0.1, 0.3]),
+                  amp=np.array([1., -0.5]), atts=np.array([0.1, 0.3]), loge=0.)
+    if is3c:
+        model = VespaModel3c(**common, azi=np.array([30., 50.]), ph_hh=np.array([20., 40.]),
+                            ph_vh=np.array([10., 30.]), wvtype=np.array([0, 1]))
+        fast, loop = create_U_from_model_3c_freqdomain, _create_U_from_model_3c_freqdomain_loop
+    else:
+        model = VespaModel(**common)
+        fast, loop = create_U_from_model_freqdomain, _create_U_from_model_freqdomain_loop
+    expected = loop(model, metadata, time, stf_time, stf, bk)
+    actual = fast(model, metadata, time, stf_time, stf, bk)
+    np.testing.assert_allclose(actual, expected, atol=1e-13, rtol=1e-13)

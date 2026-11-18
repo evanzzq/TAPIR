@@ -10,6 +10,7 @@ defaults:
   comp: "Z"
   sigma: 0.05
   num_chains: 1
+  # max_procs: 4  # concurrent chains; also capped by TAPIR_MAX_WORKERS on HPC
   totalSteps: 20
   burnInSteps: 10
   nSaveModels: 5
@@ -25,8 +26,16 @@ defaults:
   distDiffRange: [-1.0, 1.0]
   bazDiffRange: [-1.0, 1.0]
   fitAtts: false
-  # attsRange: [0.0, 4.0]  # t* prior range (s), used when fitAtts is true (3C default (1, 1) fixes t* = 1 s)
-  # attsStd: 0.4           # t* proposal step (s); default is a fraction of the range
+  # For 3C fitAtts runs, explicitly set a nonzero-width range to sample t*.
+  # Omission preserves the historical fixed t* = 1 s default; 1C defaults to [0, 4].
+  # attsRange: [0.0, 4.0]  # seconds
+  # attsStd: 0.4           # seconds; omission derives a step from the range
+  # arrStd: 0.15          # seconds
+  # slwStd: 0.3           # s/degree
+  # ampStd: 0.2
+  # aziStd: 5.0           # degrees, 3C only
+  # logeStd: 0.2
+  # logeRange: [0.0, 6.0]
   fitLoge: false
   fitPhase: false
   normOpt: 1

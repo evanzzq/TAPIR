@@ -78,7 +78,7 @@ def create_U_from_model_freqdomain(
         return np.zeros((len(time), metadata.shape[0]))
     stf_W, freqs, shifts = _shifted_spectra(model, metadata, time, stf_time, stf, bookkeeping)
     weights = model.amp[:, None] * (
-        _tstar_operator(freqs, model.atts[:, None]) if bookkeeping.fitAtts else np.ones(len(freqs))
+        _tstar_operator(freqs, model.atts[:, None], len(time)) if bookkeeping.fitAtts else np.ones(len(freqs))
     )
     trace_W = stf_W * np.einsum("pf,tpf->tf", weights, shifts)
     return irfft(trace_W, n=len(time), axis=1).T
@@ -199,7 +199,7 @@ def create_U_from_model_3c_freqdomain(
     )
     weights = np.array([zp * P + zsv * SV, rp * P + rsv * SV, 2 * SH])[:, :, None]  # (3, n_phases, 1)
     if bk.fitAtts:
-        weights = weights * _tstar_operator(freqs, np.where(is_p, 0.25, 1.0)[:, None] * model.atts[:, None])
+        weights = weights * _tstar_operator(freqs, np.where(is_p, 0.25, 1.0)[:, None] * model.atts[:, None], len(time))
     if bk.fitPhase:
         ph_vh, ph_hh = np.radians(model.ph_vh), np.radians(model.ph_hh)
         n = len(time)
@@ -345,7 +345,7 @@ def _create_U_from_model_3c_freqdomain_loop(
 
     return U_model
 
-def _tstar_operator(freqs: np.ndarray, t_star) -> np.ndarray:
+def _tstar_operator(freqs: np.ndarray, t_star, n_samples: int) -> np.ndarray:
     """
     Causal t* operator with a 1 Hz reference frequency:
     exp(-pi |f| t*) * exp(2i f t* ln(|f| / 1 Hz)).
@@ -353,15 +353,23 @@ def _tstar_operator(freqs: np.ndarray, t_star) -> np.ndarray:
     The operator is Hermitian (the f < 0 half is the conjugate of the f > 0 half), so a real
     waveform stays real at its full amplitude, and it is the identity at t* = 0.
     t_star may be an array that broadcasts against freqs, e.g. shape (n_phases, 1).
+    n_samples is the original real signal length, for either fft or rfft
+    frequencies. For even lengths, the Nyquist factor is projected to real.
     """
     abs_f = np.abs(freqs)
     log_f = np.log(np.where(abs_f > 0, abs_f, 1.0))
-    return np.exp(-np.pi * abs_f * t_star + 2j * freqs * t_star * log_f)
+    operator = np.exp(-np.pi * abs_f * t_star + 2j * freqs * t_star * log_f)
+    # For an even-length real DFT, Nyquist is its own conjugate. Project
+    # this single bin onto the real axis, retaining the real response of
+    # the continuous-frequency operator. Its index is n/2 in fft and rfft.
+    if n_samples % 2 == 0:
+        operator[..., n_samples // 2] = operator[..., n_samples // 2].real
+    return operator
 
 def tstar_conv(wvfm, time, t_star):
     """Apply t* attenuation to a real waveform sampled at `time`."""
     freqs = fftfreq(len(wvfm), time[1] - time[0])
-    return ifft(fft(wvfm) * _tstar_operator(freqs, t_star)).real
+    return ifft(fft(wvfm) * _tstar_operator(freqs, t_star, len(wvfm))).real
 
 def tstar_conv_freqdomain(W: np.ndarray, freqs: np.ndarray, t_star: float) -> np.ndarray:
     """
@@ -375,7 +383,7 @@ def tstar_conv_freqdomain(W: np.ndarray, freqs: np.ndarray, t_star: float) -> np
     Returns:
     - W_attenuated: Attenuated waveform in frequency domain
     """
-    return W * _tstar_operator(freqs, t_star)
+    return W * _tstar_operator(freqs, t_star, len(W))
 
 
 def _free_surface_coefficients(slw, a0, b0, radius):

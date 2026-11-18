@@ -48,3 +48,43 @@ def test_prepare_prior_passes_tstar_prior(is3c):
     assert prior.attsStd == 0.5
     default = _prepare_prior(*args)
     assert default.attsRange == ((1.0, 1.0) if is3c else (0, 4))
+
+
+@pytest.mark.parametrize("is3c", [False, True])
+def test_yaml_prior_options_reach_chain(tmp_path, monkeypatch, is3c):
+    from pathlib import Path
+    import yaml
+    from vespainv import runner
+    from vespainv.config import load_yaml_mapping
+
+    config = load_yaml_mapping(Path(__file__).parents[1] / "configs/example_parameter_setup.yaml")
+    config["experiments"] = [config["experiments"][0]]
+    defaults = config["defaults"]
+    defaults.update(data_root=str(Path(__file__).parents[1] / "examples/data"),
+                    runs_root=str(tmp_path / "runs"), is3c=is3c, max_procs=1,
+                    attsRange=[0., 8.], attsStd=0.5, arrStd=0.25, slwStd=0.3,
+                    ampStd=0.15, aziStd=7., logeStd=0.2, logeRange=[0., 6.], fitAtts=True)
+    config_path = tmp_path / "run.yaml"
+    config_path.write_text(yaml.safe_dump(config))
+    captured = []
+    monkeypatch.setattr(runner, "_run_chain", lambda cid, exp: captured.append(exp["prior"]))
+    runner.run_config(config_path)
+    prior = captured[0]
+    for name in ("attsStd", "arrStd", "slwStd", "ampStd", "logeStd"):
+        assert getattr(prior, name) == defaults[name]
+    assert prior.attsRange == (0., 8.)
+    assert prior.logeRange == (0., 6.)
+    if is3c:
+        assert prior.aziStd == 7.
+
+
+@pytest.mark.parametrize(("name", "value"), [
+    ("attsRange", [-1, 4]), ("attsRange", [2, 1]), ("attsRange", [0]),
+    ("attsStd", -1), ("slwStd", float("nan")), ("ampStd", float("inf")),
+    ("logeRange", [6, 0]), ("max_procs", 0),
+])
+def test_invalid_optional_settings_fail_before_running(name, value):
+    params = _valid_parameters()
+    params[name] = value
+    with pytest.raises(ValueError, match=name):
+        _validate_run_parameters(params)

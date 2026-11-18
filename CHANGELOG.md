@@ -19,3 +19,7 @@ release. Changes currently target version 0.1.0.
 - Vectorized 1C and 3C forward models: all traces and phases are evaluated
   at once, about 10-30 times faster per call. The per-trace loop is kept for
   source-array `locDiff`.
+- Real Nyquist t* factors for even-length signals, with regression coverage.
+- Crowded-window birth proposals are rejected rather than terminating a chain.
+- Optional YAML proposal widths, `logeRange`, and `max_procs`; the worker cap
+  composes with the existing HPC `TAPIR_MAX_WORKERS` limit.
