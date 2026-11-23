@@ -5,6 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
+from .stf import load_stf
+
 
 @dataclass(frozen=True)
 class DatasetValidation:
@@ -111,9 +113,7 @@ def validate_dataset(
         raise ValueError("eventinfo.csv coordinates are outside valid ranges.")
 
     if manual_stf:
-        stf = np.atleast_2d(_load_csv(dataset_dir / "stf.csv", skiprows=1))
-        if stf.shape[1] != 2 or stf.shape[0] < 2 or np.any(np.diff(stf[:, 0]) <= 0):
-            raise ValueError("stf.csv must contain increasing time and amplitude columns.")
+        load_stf(dataset_dir / "stf.csv", n_traces=shape[1], dt=dt, n_samples=time.size)
 
     if cdopt == 3:
         for name in components:

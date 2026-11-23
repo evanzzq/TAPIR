@@ -363,7 +363,7 @@ def rjmcmc_run(U_obs, CDinv, CD_sqrt_inv, metadata, Utime, stf, prior, bookkeepi
 
     # Extract stf and its time vectors
     stf_time = stf[:, 0]
-    stf_data = stf[:, 1]
+    stf_data = stf[:, 1:]
 
     model = VespaModel.create_random(Nphase=1, Ntrace=n_traces, time=Utime, prior=prior)
 
@@ -505,7 +505,7 @@ def rjmcmc_run3c(U_obs, CDinv, CD_sqrt_inv, metadata, Utime, stf, prior, bookkee
 
     # Extract stf and its time vectors
     stf_time = stf[:, 0]
-    stf_data = stf[:, 1]
+    stf_data = stf[:, 1:]
 
     # Start from a random model with one phase
     model = VespaModel3c.create_random(

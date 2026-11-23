@@ -1286,10 +1286,16 @@ def create_stf_gaussian(f0, dt):
     return np.column_stack([stf_time, stf])
 
 def est_stf_wid(stf, threshold=0.01):
-    stf_time = stf[:,0]
-    stf_data = stf[:,1]
-    inds = np.where(np.abs(stf_data) >= threshold)[0]
-    return (stf_time[inds[-1]] - stf_time[inds[0]]) if inds.size else 1.0
+    stf_time = stf[:, 0]
+    widths = []
+    for column in range(1, stf.shape[1]):
+        samples = np.abs(stf[:, column])
+        # Preserve the shared-wavelet rule; use each waveform's own peak for
+        # multiple STFs so their relative amplitudes do not determine spacing.
+        cutoff = threshold if stf.shape[1] == 2 else threshold * np.max(samples)
+        inds = np.flatnonzero(samples >= cutoff)
+        widths.append(stf_time[inds[-1]] - stf_time[inds[0]] if inds.size else 1.0)
+    return max(widths)
 
 def est_dom_freq(data, fs):
     """
@@ -1453,6 +1459,9 @@ def prep_data(datadir, modname, is3c, comp, CDopt, is_mars=False, src_array=Fals
         else:
             Uname = "U" + comp + ".csv"
             U_obs = np.loadtxt(os.path.join(datadir, modname, Uname), delimiter=",")
+
+    if not is3c and U_obs.ndim == 1:
+        U_obs = U_obs[:, np.newaxis]
 
     CDinv = None
     if CDopt:

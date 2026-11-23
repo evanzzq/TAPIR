@@ -20,6 +20,7 @@ from .utils import (
     prep_data,
 )
 from .validation import validate_dataset
+from .stf import load_stf, stf_header, validate_stf_table
 
 
 def _run_chain(chain_id: int, exp_vars: dict) -> list:
@@ -95,16 +96,35 @@ def _resolve_stf_bandpass(params: dict, dataset_dir: str):
         raise ValueError(
             f"Run bandpass {configured} does not match the prepared dataset bandpass {prepared}."
         )
-    return configured if configured is not None else prepared
+    resolved = configured if configured is not None else prepared
+    reference = manifest.get("reference_wavelet", {})
+    if params.get("man_stf") and reference.get("already_processed"):
+        import hashlib
+
+        matched = _normalize_bandpass(reference.get("bandpass"))
+        if resolved != matched:
+            raise ValueError(
+                "The empirical reference is already processed with a different bandpass; "
+                "rebuild it with matching data processing."
+            )
+        path = Path(dataset_dir) / "stf.csv"
+        if reference.get("sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
+            raise ValueError(
+                "stf.csv differs from the prepared empirical reference. Rebuild the reference "
+                "or remove the reference_wavelet manifest entry for a new unprocessed STF."
+            )
+        return None
+    return resolved
 
 
 def _filter_stf(stf, bandpass_hz):
+    stf = validate_stf_table(stf)
     if bandpass_hz is None:
         return stf
     from scipy.signal import butter, sosfiltfilt
 
     stf = np.asarray(stf, dtype=float).copy()
-    if stf.ndim != 2 or stf.shape[1] != 2 or stf.shape[0] < 4:
+    if stf.ndim != 2 or stf.shape[1] < 2 or stf.shape[0] < 4:
         raise ValueError("Bandpass filtering requires stf.csv with at least four time/amplitude rows.")
     intervals = np.diff(stf[:, 0])
     stf_dt = float(np.median(intervals))
@@ -118,23 +138,28 @@ def _filter_stf(stf, bandpass_hz):
         )
     sos = butter(2, (fmin, fmax), btype="bandpass", fs=1.0 / stf_dt, output="sos")
     padlen = min(3 * (2 * len(sos) + 1), stf.shape[0] - 1)
-    filtered = sosfiltfilt(sos, stf[:, 1], padlen=padlen)
+    filtered = sosfiltfilt(sos, stf[:, 1:], axis=0, padlen=padlen)
     scale = float(np.max(np.abs(filtered)))
-    if not np.isfinite(scale) or scale == 0:
+    if not np.isfinite(scale) or np.any(np.max(np.abs(filtered), axis=0) == 0):
         raise ValueError("Bandpass filtering produced an invalid zero-amplitude STF.")
-    stf[:, 1] = filtered / scale
+    # One common scale preserves supplied amplitude ratios between trace STFs.
+    stf[:, 1:] = filtered / scale
     return stf
 
 
 def _prepare_stf(data_dir: str, man_stf: bool, stfshape: str, U_obs, is3c, dt, bandpass_hz=None):
     if man_stf:
-        stf = np.loadtxt(os.path.join(data_dir, "stf.csv"), delimiter=",", skiprows=1)
+        stf = load_stf(os.path.join(data_dir, "stf.csv"))
     elif stfshape == "dGaussian":
         stf = create_stf(est_dom_freq(U_obs if not is3c else U_obs[:, :, 0], 1 / dt), dt)
     elif stfshape == "Gaussian":
         stf = create_stf_gaussian(est_dom_freq(U_obs if not is3c else U_obs[:, :, 0], 1 / dt), dt)
     else:
         raise ValueError(f"Unsupported stfshape: {stfshape}")
+    stf = validate_stf_table(
+        stf, n_traces=U_obs.shape[1] if U_obs.ndim > 1 else 1,
+        dt=dt, n_samples=U_obs.shape[0],
+    )
     return _filter_stf(stf, bandpass_hz)
 
 
@@ -342,7 +367,10 @@ def run_experiment(params: dict) -> None:
     )
     if not man_stf:
         stf_path = os.path.join(dataset_dir, "stf.csv")
-        np.savetxt(stf_path, stf, delimiter=",", header="time,stf", comments="")
+        # Switching to a generated wavelet must not destroy a supplied matrix.
+        # stf_used.csv below always records what this particular run used.
+        if not os.path.exists(stf_path):
+            np.savetxt(stf_path, stf, delimiter=",", header=stf_header(stf), comments="")
     stf_wid = minSpace if minSpace is not None else est_stf_wid(stf)
 
     prior = _prepare_prior(
@@ -353,7 +381,7 @@ def run_experiment(params: dict) -> None:
     os.makedirs(save_dir, exist_ok=True)
     np.savetxt(
         os.path.join(save_dir, "stf_used.csv"), stf,
-        delimiter=",", header="time,stf", comments="",
+        delimiter=",", header=stf_header(stf), comments="",
     )
     prior_path = os.path.join(save_dir, "Prior.pkl")
     if not os.path.exists(prior_path):

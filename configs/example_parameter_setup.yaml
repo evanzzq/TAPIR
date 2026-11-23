@@ -16,6 +16,7 @@ defaults:
   nSaveModels: 5
   actionsPerStep: 1
   maxN: 2
+  # Manual stf.csv: time column + one shared STF or one amplitude column per trace.
   man_stf: true
   bandpass: null
   ampRange: [-1.0, 1.0]

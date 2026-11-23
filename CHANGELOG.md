@@ -23,3 +23,8 @@ release. Changes currently target version 0.1.0.
 - Crowded-window birth proposals are rejected rather than terminating a chain.
 - Optional YAML proposal widths, `logeRange`, and `max_procs`; the worker cap
   composes with the existing HPC `TAPIR_MAX_WORKERS` limit.
+- Manual STFs can now contain one waveform per observed trace, in positional
+  column order, while shared and generated STFs remain supported. Validation,
+  filtering, sampling, snapshots and waveform reconstruction retain every column.
+- Generated wavelets no longer overwrite an existing manual stf.csv; each run
+  still saves its actual reference in stf_used.csv.

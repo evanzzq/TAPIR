@@ -2,6 +2,7 @@ import numpy as np
 from scipy.fft import fft, ifft, fftfreq, rfft, irfft, rfftfreq
 from scipy.interpolate import interp1d
 from vespainv.model import VespaModel, Prior, Bookkeeping
+from vespainv.stf import validate_stf_samples
 from vespainv.utils import dest_point, apply_constant_phase_shift
 
 
@@ -38,12 +39,23 @@ def _trace_offsets(metadata: np.ndarray, bookkeeping: Bookkeeping) -> np.ndarray
     return sx * dx + sy * dy
 
 
+def _stf_spectra(stf, stf_time, time, n_traces, *, real):
+    """Return one shared spectrum or one spectrum per trace, with frequency last."""
+    samples = validate_stf_samples(
+        stf_time, stf, n_traces=n_traces,
+        dt=time[1] - time[0], n_samples=len(time),
+    )
+    padded = np.pad(samples, ((0, len(time) - len(samples)), (0, 0)))
+    transform = rfft if real else fft
+    return transform(padded, axis=0).T
+
+
 def _shifted_spectra(model, metadata, time, stf_time, stf, bookkeeping):
     """
     One-sided STF spectrum, frequencies, and exp(-2 pi i f (t_ij - stf_shift)) for every trace i and
     phase j, shape (n_traces, n_phases, n_freqs). Real waveforms only need f >= 0 (rfft/irfft).
     """
-    stf_W = rfft(np.pad(stf, (0, len(time) - len(stf)), mode='constant'))
+    stf_W = _stf_spectra(stf, stf_time, time, len(metadata), real=True)
     freqs = rfftfreq(len(time), stf_time[1] - stf_time[0])
     tshift = model.arr[None, :] + model.slw[None, :] * _trace_offsets(metadata, bookkeeping)[:, None]
     return stf_W, freqs, np.exp(-2j * np.pi * freqs * (tshift[:, :, None] - stf_time[-1]))
@@ -63,7 +75,7 @@ def create_U_from_model_freqdomain(
     metadata: np.ndarray,  # shape (n_traces, 2): [lat, lon] per row; if isMars, [dist, baz] per row
     time: np.ndarray,
     stf_time: np.ndarray,
-    stf: np.ndarray,
+    stf: np.ndarray,  # (samples,), (samples, 1), or (samples, n_traces)
     bookkeeping: Bookkeeping
 ) -> np.ndarray:
     """
@@ -89,7 +101,7 @@ def _create_U_from_model_freqdomain_loop(
     metadata: np.ndarray,  # shape (n_traces, 2): [lat, lon] per row; if isMars, [dist, baz] per row
     time: np.ndarray,
     stf_time: np.ndarray,
-    stf: np.ndarray,
+    stf: np.ndarray,  # (samples,), (samples, 1), or (samples, n_traces)
     bookkeeping: Bookkeeping
 ) -> np.ndarray:
     """
@@ -125,11 +137,11 @@ def _create_U_from_model_freqdomain_loop(
     srcLon = bookkeeping.srcLon
 
     stf_shift = stf_time[-1]
-    stf = np.pad(stf, (0, len(time)-len(stf)), mode='constant')
-    stf_W = fft(stf)
-    stf_freq = fftfreq(len(stf), stf_time[1]-stf_time[0])
+    spectra = _stf_spectra(stf, stf_time, time, n_traces, real=False)
+    stf_freq = fftfreq(len(time), stf_time[1]-stf_time[0])
 
     for itrace in range(n_traces):
+        stf_W = spectra[0 if len(spectra) == 1 else itrace]
         trLat, trLon = _metadata_to_latlon(metadata[itrace], srcLat, srcLon, isMars or srcArray)
 
         # it doesn't make sense to do locDiff in receiver array
@@ -173,7 +185,7 @@ def create_U_from_model_3c_freqdomain(
     metadata: np.ndarray,  # shape (n_traces, 2): [lat, lon] per row; if isMars, [dist, baz] per row
     time: np.ndarray,
     stf_time: np.ndarray,
-    stf: np.ndarray,
+    stf: np.ndarray,  # (samples,), (samples, 1), or (samples, n_traces)
     bookkeeping: Bookkeeping
 ):
     """
@@ -218,7 +230,7 @@ def _create_U_from_model_3c_freqdomain_loop(
     metadata: np.ndarray,  # shape (n_traces, 2): [lat, lon] per row; if isMars, [dist, baz] per row
     time: np.ndarray,
     stf_time: np.ndarray,
-    stf: np.ndarray,
+    stf: np.ndarray,  # (samples,), (samples, 1), or (samples, n_traces)
     bookkeeping: Bookkeeping
 ):
     """
@@ -259,11 +271,11 @@ def _create_U_from_model_3c_freqdomain_loop(
     srcLon = bookkeeping.srcLon
 
     stf_shift = stf_time[-1]
-    stf = np.pad(stf, (0, len(time)-len(stf)), mode='constant')
-    stf_W = fft(stf)
-    stf_freq = fftfreq(len(stf), stf_time[1]-stf_time[0])
+    spectra = _stf_spectra(stf, stf_time, time, n_traces, real=False)
+    stf_freq = fftfreq(len(time), stf_time[1]-stf_time[0])
 
     for itrace in range(n_traces):
+        stf_W = spectra[0 if len(spectra) == 1 else itrace]
         trLat, trLon = _metadata_to_latlon(metadata[itrace], srcLat, srcLon, isMars or srcArray)
 
         # it doesn't make sense to do locDiff in receiver array

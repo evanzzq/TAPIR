@@ -481,9 +481,9 @@ def plot_seismogram_compare(U, time, offset=1.5, ensemble=None, prior=None, meta
                             iph += 1
             # aggreagate U
             U_model += (
-                create_U_from_model_3c_freqdomain(model, metadata, time, stf[:, 0], stf[:, 1], bookkeeping)
+                create_U_from_model_3c_freqdomain(model, metadata, time, stf[:, 0], stf[:, 1:], bookkeeping)
                 if is3c 
-                else create_U_from_model_freqdomain(model, metadata, time, stf[:, 0], stf[:, 1], bookkeeping)
+                else create_U_from_model_freqdomain(model, metadata, time, stf[:, 0], stf[:, 1:], bookkeeping)
                 )
         U_model /= len(ensemble)
 

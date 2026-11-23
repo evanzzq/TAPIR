@@ -123,7 +123,7 @@ For Mars runs, provide:
 - `station_metadata_db.csv` in `dist_deg,baz`
 - `eventinfo.csv`
 - optional fitted covariance files when `CDopt: 3`
-- `stf.csv` when `man_stf: true`
+- `stf.csv` when `man_stf: true` (time first, then one shared STF or one amplitude column per trace; see [STF format](docs/data-format.md#covariance-and-source-time-function))
 
 Set `isMars: true` in the inversion config. In this mode, TAPIR interprets metadata as `dist/baz`, enforces source-array geometry, and uses Mars-specific geometry constants in the 3C transform. The effective half-space velocities used by the free-surface transform can be set with `fstVp` and `fstVs` (in km/s). If omitted, they default to 6.571/4.1 for Earth and 5.0/3.0 for Mars.
 
