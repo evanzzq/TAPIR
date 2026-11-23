@@ -4,6 +4,10 @@ This update is based on `feature/hpc-worker-control` at `e62ffd1`. It includes
 Ved's two patches, plus the follow-up changes described below. The existing
 empirical STF work in the original Mac checkout is separate from this branch.
 
+Validated on 23 November 2026 with the completed Terrawulf STF sweep. See
+[the validation record](forward-speedup-validation.md) for numerical checks,
+posterior comparisons, timing and limits of the claim.
+
 ## Attenuation configuration
 
 For a 3C run that should sample attenuation, explicitly set:

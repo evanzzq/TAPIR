@@ -1,0 +1,813 @@
+{
+  "date": "2026-11-23",
+  "tested_code_revision": "617741b32c6fda862cc710155c9185fc51aca364",
+  "status": "Validated numerical implementation and general compatibility of dominant posterior features; not a claim of posterior identity or full convergence.",
+  "corrected_bundle_manifest_sha256": "a4bb12825c72a2a26b9e8e19f7091790fa4898a2eb8f10ddcc4c2cfd2051d19f",
+  "scope": {
+    "cases": 8,
+    "chains_per_case_per_version": 8,
+    "steps_per_chain": 1000000,
+    "burn_in": 800000,
+    "saved_models_per_chain": 200,
+    "total_saved_models_compared": 25600,
+    "same_named_node_for_each_pair": true,
+    "all_data_priors_STFs_and_scientific_parameters_match": true
+  },
+  "numerical": {
+    "saved_models_checked": 1024,
+    "maximum_corrected_loop_relative_L2": 4.928935733182264e-15,
+    "maximum_absolute_log_likelihood_difference": 7.275957614183426e-12,
+    "maximum_unattenuated_historical_relative_L2": 5.042592475143011e-15,
+    "repository_tests_passed": 117
+  },
+  "frozen_code_sha256": {
+    "waveformBuilder.py": "c50b1880e5c882c40222506c9aa396d7788ffcc49e6ce6ddbe35d471c69de23e",
+    "rjmcmc.py": "b53f14bde18d0ed666f9c90376ced60f6c96ff57c0345ffc98790c2e0bd77b70"
+  },
+  "cases": [
+    {
+      "case": "end_1p5",
+      "old_hours": 57.952104166666665,
+      "new_hours": 6.121104166666667,
+      "chain_speedup": 9.46758992964913,
+      "old_fraction_at_maxN": 0.99275625,
+      "new_fraction_at_maxN": 0.96646625,
+      "old_Rhat_loge": 1.2383527503463698,
+      "new_Rhat_loge": 1.1220651664599828,
+      "old_mean_saved_N": 19.99375,
+      "new_mean_saved_N": 19.969375,
+      "old_parameters": {
+        "P_abs_amp_quantiles": [
+          0.0594645014353673,
+          0.1900679007664498,
+          0.9765237791943441
+        ],
+        "P_stored_atts_quantiles": [
+          0.03539144988164817,
+          0.6799623664031834,
+          3.351626348425259
+        ],
+        "P_slowness_quantiles": [
+          4.201805908245459,
+          6.148950351165198,
+          7.075907409871855
+        ]
+      },
+      "new_parameters": {
+        "P_abs_amp_quantiles": [
+          0.03039100815327927,
+          0.10247376870003214,
+          0.5972219977033064
+        ],
+        "P_stored_atts_quantiles": [
+          0.03481553980962185,
+          0.7630933285062242,
+          3.2563839494654307
+        ],
+        "P_slowness_quantiles": [
+          4.196966058580156,
+          6.147779534003254,
+          8.437790380472991
+        ]
+      },
+      "corrected_to_old_median_P_amp_ratio": 0.5391429498974111,
+      "smoothed_phase_shape_JS_distance_P_S": [
+        0.3125005774305815,
+        0.5498701469659357
+      ],
+      "within_run_4_vs_4_chain_JS_P_S_old_new_q05_q50_q95": [
+        [
+          [
+            0.28505018590207565,
+            0.3386052763773848,
+            0.42608730406669965
+          ],
+          [
+            0.3519086481201662,
+            0.3875377560501678,
+            0.42788706537771354
+          ]
+        ],
+        [
+          [
+            0.6993051986240086,
+            0.7533192547327289,
+            0.8226302592198589
+          ],
+          [
+            0.698303371920936,
+            0.7516173924278089,
+            0.8177761895111467
+          ]
+        ]
+      ],
+      "mean_prediction_correlation_ZRT": [
+        0.9800106801427638,
+        0.9810123881595566,
+        0.6168593437234154
+      ],
+      "mean_prediction_difference_relative_to_observed_L2_ZRT": [
+        0.14731210926624436,
+        0.08828727120695813,
+        0.01942519456278586
+      ],
+      "old_relative_L2": [
+        0.6512311050256019,
+        0.8778667786626408,
+        0.9982042461405887
+      ],
+      "new_relative_L2": [
+        0.6449757970024896,
+        0.8732720888716465,
+        0.9986339205188283
+      ]
+    },
+    {
+      "case": "end_2",
+      "old_hours": 58.22394444444444,
+      "new_hours": 6.113504166666667,
+      "chain_speedup": 9.52382510212478,
+      "old_fraction_at_maxN": 0.9702075,
+      "new_fraction_at_maxN": 0.974399375,
+      "old_Rhat_loge": 1.1054077142015104,
+      "new_Rhat_loge": 1.162962120207389,
+      "old_mean_saved_N": 19.968125,
+      "new_mean_saved_N": 19.970625,
+      "old_parameters": {
+        "P_abs_amp_quantiles": [
+          0.05226078214539421,
+          0.17686353825919668,
+          0.7868981281254995
+        ],
+        "P_stored_atts_quantiles": [
+          0.030629214807083208,
+          0.8602620152207213,
+          3.5860131186074518
+        ],
+        "P_slowness_quantiles": [
+          4.196652131667963,
+          6.15229042388682,
+          8.787852492770355
+        ]
+      },
+      "new_parameters": {
+        "P_abs_amp_quantiles": [
+          0.0287720498528546,
+          0.08201878575681992,
+          0.5179213264654202
+        ],
+        "P_stored_atts_quantiles": [
+          0.03440414326342589,
+          0.7622927645644468,
+          3.6158733900722653
+        ],
+        "P_slowness_quantiles": [
+          4.186389092885882,
+          6.139911133810994,
+          7.7214223553468075
+        ]
+      },
+      "corrected_to_old_median_P_amp_ratio": 0.46374050052430776,
+      "smoothed_phase_shape_JS_distance_P_S": [
+        0.32922235675894135,
+        0.6079318122824421
+      ],
+      "within_run_4_vs_4_chain_JS_P_S_old_new_q05_q50_q95": [
+        [
+          [
+            0.3807477709293789,
+            0.4066434150723178,
+            0.46683114385951696
+          ],
+          [
+            0.37554650190152766,
+            0.4165390180239927,
+            0.4883848932857045
+          ]
+        ],
+        [
+          [
+            0.6541989548844134,
+            0.6963719051204277,
+            0.8205130702104296
+          ],
+          [
+            0.6427106105176467,
+            0.762339966873164,
+            0.9254039471260234
+          ]
+        ]
+      ],
+      "mean_prediction_correlation_ZRT": [
+        0.9769234219047312,
+        0.9803084777718092,
+        0.5967328569487708
+      ],
+      "mean_prediction_difference_relative_to_observed_L2_ZRT": [
+        0.16409268350146777,
+        0.10123986112045313,
+        0.018654505107644628
+      ],
+      "old_relative_L2": [
+        0.6554522021661598,
+        0.8780078901947299,
+        0.9985961542288407
+      ],
+      "new_relative_L2": [
+        0.6640816073668727,
+        0.8732940562847356,
+        0.998398497301075
+      ]
+    },
+    {
+      "case": "end_2p5",
+      "old_hours": 58.025954166666665,
+      "new_hours": 6.109429166666667,
+      "chain_speedup": 9.497770181747748,
+      "old_fraction_at_maxN": 0.980200625,
+      "new_fraction_at_maxN": 0.965181875,
+      "old_Rhat_loge": 1.103285819095454,
+      "new_Rhat_loge": 1.2859997200357438,
+      "old_mean_saved_N": 19.97875,
+      "new_mean_saved_N": 19.96375,
+      "old_parameters": {
+        "P_abs_amp_quantiles": [
+          0.055163455014495086,
+          0.16882812854450782,
+          0.9678479806225225
+        ],
+        "P_stored_atts_quantiles": [
+          0.031429139317509465,
+          0.7901271852636815,
+          3.3341718068924013
+        ],
+        "P_slowness_quantiles": [
+          4.206070278207628,
+          6.133548102326268,
+          7.069445888941956
+        ]
+      },
+      "new_parameters": {
+        "P_abs_amp_quantiles": [
+          0.027237091467752376,
+          0.08674249969478012,
+          0.4910669468962788
+        ],
+        "P_stored_atts_quantiles": [
+          0.026862317734664125,
+          0.6857425758534854,
+          3.559255738767591
+        ],
+        "P_slowness_quantiles": [
+          4.180491278313554,
+          6.153903049530602,
+          8.223606707258625
+        ]
+      },
+      "corrected_to_old_median_P_amp_ratio": 0.513791750477838,
+      "smoothed_phase_shape_JS_distance_P_S": [
+        0.3206070064355764,
+        0.6509512416085841
+      ],
+      "within_run_4_vs_4_chain_JS_P_S_old_new_q05_q50_q95": [
+        [
+          [
+            0.3583633615557737,
+            0.40485852802123434,
+            0.4448637226927173
+          ],
+          [
+            0.4070042675134968,
+            0.4406987136811121,
+            0.48381914974329887
+          ]
+        ],
+        [
+          [
+            0.5602364982937916,
+            0.588120600170846,
+            0.648515335276138
+          ],
+          [
+            0.662571501595137,
+            0.7074089937217847,
+            0.7819494449817046
+          ]
+        ]
+      ],
+      "mean_prediction_correlation_ZRT": [
+        0.9879852789578949,
+        0.9843889400257911,
+        0.8317938843756824
+      ],
+      "mean_prediction_difference_relative_to_observed_L2_ZRT": [
+        0.1308347719057489,
+        0.08620127399671561,
+        0.019295243098055092
+      ],
+      "old_relative_L2": [
+        0.6657223851172576,
+        0.8825662875371942,
+        0.9978720653675632
+      ],
+      "new_relative_L2": [
+        0.660273433784839,
+        0.879414626581458,
+        0.9973826786984809
+      ]
+    },
+    {
+      "case": "end_3",
+      "old_hours": 58.42559444444444,
+      "new_hours": 6.087068055555556,
+      "chain_speedup": 9.598314641992621,
+      "old_fraction_at_maxN": 0.978700625,
+      "new_fraction_at_maxN": 0.930074375,
+      "old_Rhat_loge": 1.144225712613689,
+      "new_Rhat_loge": 1.1191322319393848,
+      "old_mean_saved_N": 19.978125,
+      "new_mean_saved_N": 19.933125,
+      "old_parameters": {
+        "P_abs_amp_quantiles": [
+          0.05657589673521818,
+          0.19635220584339974,
+          0.9736539910558186
+        ],
+        "P_stored_atts_quantiles": [
+          0.0328683404277524,
+          0.7838378099027233,
+          3.7786797472743103
+        ],
+        "P_slowness_quantiles": [
+          4.17890424502366,
+          6.1648747242687945,
+          7.142352348398162
+        ]
+      },
+      "new_parameters": {
+        "P_abs_amp_quantiles": [
+          0.02942298238918683,
+          0.09368137258370489,
+          0.24537813566611483
+        ],
+        "P_stored_atts_quantiles": [
+          0.03784190856927579,
+          0.9389788020348051,
+          3.7098688128841895
+        ],
+        "P_slowness_quantiles": [
+          4.202467487289741,
+          6.159253755370463,
+          7.116898949356608
+        ]
+      },
+      "corrected_to_old_median_P_amp_ratio": 0.4771088370579359,
+      "smoothed_phase_shape_JS_distance_P_S": [
+        0.355844986517002,
+        0.6540999080438432
+      ],
+      "within_run_4_vs_4_chain_JS_P_S_old_new_q05_q50_q95": [
+        [
+          [
+            0.4115612768664331,
+            0.44007662872419817,
+            0.5032059054888223
+          ],
+          [
+            0.3596734852804254,
+            0.393283967465841,
+            0.44492256447781925
+          ]
+        ],
+        [
+          [
+            0.7546437180456619,
+            0.8039806480415015,
+            0.8486311728350044
+          ],
+          [
+            0.8766379060482743,
+            0.9108191297821234,
+            0.9602955113820957
+          ]
+        ]
+      ],
+      "mean_prediction_correlation_ZRT": [
+        0.9839084470843398,
+        0.9868954806401986,
+        0.6634319102825386
+      ],
+      "mean_prediction_difference_relative_to_observed_L2_ZRT": [
+        0.1216629871809474,
+        0.07389809576909886,
+        0.029981079621586904
+      ],
+      "old_relative_L2": [
+        0.6587258256068205,
+        0.8741355229467543,
+        0.9961951140948079
+      ],
+      "new_relative_L2": [
+        0.6584693860688119,
+        0.8799415474094088,
+        0.9980168661925718
+      ]
+    },
+    {
+      "case": "end_3p5",
+      "old_hours": 58.644172222222224,
+      "new_hours": 6.086531944444445,
+      "chain_speedup": 9.635071787596612,
+      "old_fraction_at_maxN": 0.98374,
+      "new_fraction_at_maxN": 0.93219375,
+      "old_Rhat_loge": 1.1075242554422526,
+      "new_Rhat_loge": 1.1761700588179815,
+      "old_mean_saved_N": 19.980625,
+      "new_mean_saved_N": 19.934375,
+      "old_parameters": {
+        "P_abs_amp_quantiles": [
+          0.059167508600708775,
+          0.18015638718031698,
+          0.9734648677917597
+        ],
+        "P_stored_atts_quantiles": [
+          0.05377463783391857,
+          0.832687960358895,
+          3.614329715545388
+        ],
+        "P_slowness_quantiles": [
+          4.1822966314278665,
+          6.138184927078043,
+          8.468126224240144
+        ]
+      },
+      "new_parameters": {
+        "P_abs_amp_quantiles": [
+          0.02848425689362292,
+          0.10301787404860993,
+          0.5659502886006709
+        ],
+        "P_stored_atts_quantiles": [
+          0.07027041941477678,
+          1.0995735677673726,
+          3.7487155030662604
+        ],
+        "P_slowness_quantiles": [
+          4.192565686048704,
+          6.140686507082383,
+          8.399435262246444
+        ]
+      },
+      "corrected_to_old_median_P_amp_ratio": 0.5718247110800475,
+      "smoothed_phase_shape_JS_distance_P_S": [
+        0.333258984043756,
+        0.6443000433378271
+      ],
+      "within_run_4_vs_4_chain_JS_P_S_old_new_q05_q50_q95": [
+        [
+          [
+            0.3730023402372291,
+            0.40763124695927067,
+            0.4549449950917746
+          ],
+          [
+            0.38394145750788705,
+            0.4176307366394534,
+            0.4482408965574583
+          ]
+        ],
+        [
+          [
+            0.7412207628249302,
+            0.7871172587913332,
+            0.8276073777395396
+          ],
+          [
+            0.5909646154552166,
+            0.6399502503320067,
+            0.7332399013790929
+          ]
+        ]
+      ],
+      "mean_prediction_correlation_ZRT": [
+        0.9839627156617174,
+        0.9795937510551442,
+        0.7825655140017778
+      ],
+      "mean_prediction_difference_relative_to_observed_L2_ZRT": [
+        0.15363741976860887,
+        0.09450352761367209,
+        0.024615994278422346
+      ],
+      "old_relative_L2": [
+        0.6693891066412961,
+        0.8766305573700843,
+        0.9974710495792585
+      ],
+      "new_relative_L2": [
+        0.6524280492078818,
+        0.8746349108705473,
+        0.9962259698822339
+      ]
+    },
+    {
+      "case": "end_4",
+      "old_hours": 58.465158333333335,
+      "new_hours": 6.113605555555555,
+      "chain_speedup": 9.56312241639549,
+      "old_fraction_at_maxN": 0.98290375,
+      "new_fraction_at_maxN": 0.984740625,
+      "old_Rhat_loge": 1.0630740905980516,
+      "new_Rhat_loge": 1.326482741545298,
+      "old_mean_saved_N": 19.985,
+      "new_mean_saved_N": 19.984375,
+      "old_parameters": {
+        "P_abs_amp_quantiles": [
+          0.056769938622882085,
+          0.17083139548723192,
+          0.9687704612392719
+        ],
+        "P_stored_atts_quantiles": [
+          0.09400819897810542,
+          1.3533439313707092,
+          3.827024194559615
+        ],
+        "P_slowness_quantiles": [
+          4.1441264829254925,
+          6.135640326406923,
+          7.519599537078118
+        ]
+      },
+      "new_parameters": {
+        "P_abs_amp_quantiles": [
+          0.029270632775820787,
+          0.07834573413069193,
+          0.5295155292551146
+        ],
+        "P_stored_atts_quantiles": [
+          0.07871054919392387,
+          1.0757284304153651,
+          3.745289442500727
+        ],
+        "P_slowness_quantiles": [
+          4.160217242437916,
+          6.162892528002947,
+          8.538774957320623
+        ]
+      },
+      "corrected_to_old_median_P_amp_ratio": 0.4586143776864924,
+      "smoothed_phase_shape_JS_distance_P_S": [
+        0.41052807342381414,
+        0.5755650570296269
+      ],
+      "within_run_4_vs_4_chain_JS_P_S_old_new_q05_q50_q95": [
+        [
+          [
+            0.40640317544942417,
+            0.4541323676275397,
+            0.5084497359375637
+          ],
+          [
+            0.3962238267482248,
+            0.4461283876810701,
+            0.5010315219547697
+          ]
+        ],
+        [
+          [
+            0.6612696449399632,
+            0.7380403643258879,
+            0.8017805072033314
+          ],
+          [
+            0.487936618266164,
+            0.5825835153139044,
+            0.7368504274811585
+          ]
+        ]
+      ],
+      "mean_prediction_correlation_ZRT": [
+        0.9865036915066389,
+        0.9795725584324987,
+        0.90467555933069
+      ],
+      "mean_prediction_difference_relative_to_observed_L2_ZRT": [
+        0.14450059805544505,
+        0.09318282238644457,
+        0.024747999487769054
+      ],
+      "old_relative_L2": [
+        0.6674020087608922,
+        0.8776815887163334,
+        0.9956599975150392
+      ],
+      "new_relative_L2": [
+        0.6544605913308427,
+        0.8821992630933171,
+        0.9952411216125461
+      ]
+    },
+    {
+      "case": "long_original",
+      "old_hours": 58.757629166666675,
+      "new_hours": 6.141697222222223,
+      "chain_speedup": 9.567001928077246,
+      "old_fraction_at_maxN": 0.98997875,
+      "new_fraction_at_maxN": 0.974949375,
+      "old_Rhat_loge": 1.1643511222798255,
+      "new_Rhat_loge": 1.1473119035977748,
+      "old_mean_saved_N": 19.988125,
+      "new_mean_saved_N": 19.970625,
+      "old_parameters": {
+        "P_abs_amp_quantiles": [
+          0.05885329652687572,
+          0.15533792121960205,
+          0.8739600578827013
+        ],
+        "P_stored_atts_quantiles": [
+          0.050699845309588445,
+          0.9054188892505108,
+          3.8435064170586544
+        ],
+        "P_slowness_quantiles": [
+          4.149086173535344,
+          6.143649229017736,
+          7.699196085373272
+        ]
+      },
+      "new_parameters": {
+        "P_abs_amp_quantiles": [
+          0.030414324310098217,
+          0.07882301799388361,
+          0.3293700209329599
+        ],
+        "P_stored_atts_quantiles": [
+          0.0410931826000239,
+          0.8177856989692256,
+          3.884566270229096
+        ],
+        "P_slowness_quantiles": [
+          4.181712123239083,
+          6.168145464483345,
+          8.727339995162414
+        ]
+      },
+      "corrected_to_old_median_P_amp_ratio": 0.5074293345438239,
+      "smoothed_phase_shape_JS_distance_P_S": [
+        0.38925882383972965,
+        0.6284355282127991
+      ],
+      "within_run_4_vs_4_chain_JS_P_S_old_new_q05_q50_q95": [
+        [
+          [
+            0.4746899280500151,
+            0.523030792569316,
+            0.5664513688982858
+          ],
+          [
+            0.48305689287356013,
+            0.5205296654103574,
+            0.571232313077743
+          ]
+        ],
+        [
+          [
+            0.7379424212342398,
+            0.7858917142672898,
+            0.8392010660105761
+          ],
+          [
+            0.7370040477195035,
+            0.8043567872631363,
+            0.8565346145404317
+          ]
+        ]
+      ],
+      "mean_prediction_correlation_ZRT": [
+        0.9771877377171684,
+        0.9880333749247868,
+        0.6830683420011898
+      ],
+      "mean_prediction_difference_relative_to_observed_L2_ZRT": [
+        0.14358855549761754,
+        0.06232857980268477,
+        0.02622663131610005
+      ],
+      "old_relative_L2": [
+        0.6602310853553677,
+        0.8803376095840373,
+        0.9969260047046495
+      ],
+      "new_relative_L2": [
+        0.6771000834569841,
+        0.8851737098161561,
+        0.9963011810231668
+      ]
+    },
+    {
+      "case": "dgaussian",
+      "old_hours": 61.144556944444446,
+      "new_hours": 6.554095833333333,
+      "chain_speedup": 9.329213136230123,
+      "old_fraction_at_maxN": 0.9905925,
+      "new_fraction_at_maxN": 0.999805625,
+      "old_Rhat_loge": 1.271156321133613,
+      "new_Rhat_loge": 1.1541803113924738,
+      "old_mean_saved_N": 19.98875,
+      "new_mean_saved_N": 20.0,
+      "old_parameters": {
+        "P_abs_amp_quantiles": [
+          0.052434427754606085,
+          0.1616432140856683,
+          0.6202863777869075
+        ],
+        "P_stored_atts_quantiles": [
+          0.03868905947027789,
+          1.3424014647563267,
+          3.8720114056331894
+        ],
+        "P_slowness_quantiles": [
+          4.18786585391162,
+          6.157674682081955,
+          7.0753943099979395
+        ]
+      },
+      "new_parameters": {
+        "P_abs_amp_quantiles": [
+          0.02664132141531294,
+          0.08287521645254917,
+          0.2772340089759281
+        ],
+        "P_stored_atts_quantiles": [
+          0.0329108283179122,
+          1.449924277462423,
+          3.825416559396313
+        ],
+        "P_slowness_quantiles": [
+          4.199820281585674,
+          6.149398054470985,
+          8.97769704798381
+        ]
+      },
+      "corrected_to_old_median_P_amp_ratio": 0.5127045816388347,
+      "smoothed_phase_shape_JS_distance_P_S": [
+        0.39063262128683396,
+        0.6293877267686424
+      ],
+      "within_run_4_vs_4_chain_JS_P_S_old_new_q05_q50_q95": [
+        [
+          [
+            0.44452860728081245,
+            0.468469818109451,
+            0.49924750041753485
+          ],
+          [
+            0.4123404650787213,
+            0.4527464151180915,
+            0.5077583240154602
+          ]
+        ],
+        [
+          [
+            0.6474101570332014,
+            0.7346318801426651,
+            0.8429053694544792
+          ],
+          [
+            0.6413557421069842,
+            0.7408489259725591,
+            0.8112706450157935
+          ]
+        ]
+      ],
+      "mean_prediction_correlation_ZRT": [
+        0.9606776567395436,
+        0.962711997680807,
+        0.7280147519518743
+      ],
+      "mean_prediction_difference_relative_to_observed_L2_ZRT": [
+        0.15548329209379028,
+        0.11878458549886349,
+        0.014064037688465408
+      ],
+      "old_relative_L2": [
+        0.6969779645828449,
+        0.880851746809125,
+        0.998439410024746
+      ],
+      "new_relative_L2": [
+        0.6827012760459871,
+        0.8752028212627585,
+        0.9973986133721292
+      ]
+    }
+  ],
+  "limitations": [
+    "t* amplitude/DC/Nyquist corrections intentionally change the historical attenuated target.",
+    "Amplitude prior bounds are unchanged, so the two likelihood/prior combinations are not related by an exactly invariant rescaling.",
+    "Both sweeps have incomplete chain agreement and active maxN bounds; secondary S features are less stable.",
+    "Waveform means use 20 saved draws/chain; all 200 saved draws/chain enter the parameter/phase maps.",
+    "The bundle retains an empirical-STF runner guard in addition to the tested branch; the bundle manifest fixes the complete executable snapshot.",
+    "Wall-clock speedups are observed across different chains/times, not a controlled same-random-stream MCMC comparison."
+  ]
+}
