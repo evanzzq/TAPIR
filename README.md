@@ -94,6 +94,13 @@ directory. During inversion, TAPIR automatically applies the recorded passband
 to the source-time function using the same two-corner, zero-phase Butterworth
 filter used for the waveform and noise traces.
 
+For receiver arrays, `prep-earth --empirical-stf` opens an optional interactive
+reference selector after QC. Use one retained station or an aligned stack, select
+the pulse window, and save `stf.csv` for `man_stf: true`. References created this
+way are marked as already processed and are not bandpassed a second time. See
+[the empirical-reference workflow](docs/empirical-reference.md) for configuration,
+arrival prediction, interactive controls, and reproducible replay.
+
 `prep-earth` reads all SAC files in the event directory and uses the SAC channel header to identify components, but in practice the directory should ideally contain only the Z/R/T files intended for preparation. When a noise directory is provided, the prep step now writes only the fitted covariance outputs (`CD_UZ_fit.csv`, `CD_UR_fit.csv`, `CD_UT_fit.csv`) for downstream use.
 
 The typical Earth workflow is:

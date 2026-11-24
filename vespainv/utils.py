@@ -214,7 +214,7 @@ def _trim_trace_to_available_window(tr, twin, label, warning_cache=None):
     return True
 
 
-def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_dir=None, output_dir=None, snr_component='UZ', snr_threshold=None, twin=None, plot_summary=False):
+def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_dir=None, output_dir=None, snr_component='UZ', snr_threshold=None, twin=None, plot_summary=False, empirical_stf=None):
     import os
     import numpy as np
     from obspy import read
@@ -223,6 +223,11 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
     from scipy.signal import correlate
     from scipy.linalg import toeplitz
     from scipy.optimize import curve_fit
+    from .empirical_stf import (
+        ReferenceTrace, reference_settings, select_receiver_reference, save_receiver_reference,
+    )
+
+    empirical_stf = reference_settings(empirical_stf)
 
     os.makedirs(output_dir, exist_ok=True)
     print(f"[prep-earth] Output directory: {output_dir}")
@@ -244,12 +249,24 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
     trim_warning_cache = set()
 
     stations = {}
+    trace_ids = []
+    qc_report = []
     evla = evlo = None
     reference_npts = None
     reference_dt = None
 
     for ifile, f in enumerate(sac_files, start=1):
         tr = read(f)[0]
+        reference_trace = None
+        if empirical_stf is not None:
+            if tr.stats.channel[-1] not in valid_channels:
+                ignored_channel_count += 1
+                continue
+            # Filter the full available record once, retaining the reference even
+            # when the eventual inversion window excludes the direct arrival.
+            if isbp and freqs:
+                tr.filter("bandpass", freqmin=freqs[0], freqmax=freqs[1], corners=2, zerophase=True)
+            reference_trace = tr.copy()
         if twin is not None:
             if not _trim_trace_to_available_window(
                 tr,
@@ -268,9 +285,11 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
         if key not in stations:
             stations[key] = {"Z": None, "R": None, "T": None, "norm": None}
 
-        if isbp and freqs:
+        if isbp and freqs and empirical_stf is None:
             tr.filter("bandpass", freqmin=freqs[0], freqmax=freqs[1], corners=2, zerophase=True)
         stations[key][ch] = tr
+        if reference_trace is not None:
+            stations[key][f"{ch}_reference"] = reference_trace
 
         # Load matching noise file if provided
         if noise_dir:
@@ -278,6 +297,8 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
             fnoise = os.path.join(noise_dir, fbase + ".noise" + fext)
             if os.path.exists(fnoise):
                 tr_noise = read(fnoise)[0]
+                if isbp and freqs and empirical_stf is not None:
+                    tr_noise.filter("bandpass", freqmin=freqs[0], freqmax=freqs[1], corners=2, zerophase=True)
                 if twin is not None:
                     if not _trim_trace_to_available_window(
                         tr_noise,
@@ -286,7 +307,7 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
                         warning_cache=trim_warning_cache,
                     ):
                         continue
-                if isbp and freqs:
+                if isbp and freqs and empirical_stf is None:
                     tr_noise.filter("bandpass", freqmin=freqs[0], freqmax=freqs[1], corners=2, zerophase=True)
                 stations[key][f"{ch}_noise"] = tr_noise
             else:
@@ -301,19 +322,25 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
     for key, comps in stations.items():
         trZ, trR, trT = comps["Z"], comps["R"], comps["T"]
         if None in (trZ, trR, trT):
+            qc_report.append(dict(id=key, status="rejected", reason="incomplete Z/R/T"))
             continue
 
         # Check consistency
         if not (len(trZ.data) == len(trR.data) == len(trT.data)):
+            qc_report.append(dict(id=key, status="rejected", reason="component length mismatch"))
             continue
         if reference_npts is None:
             reference_npts = len(trZ.data)
             reference_dt = trZ.stats.delta
         if len(trZ.data) != reference_npts or trZ.stats.delta != reference_dt:
+            qc_report.append(dict(id=key, status="rejected", reason="sampling mismatch"))
             continue
 
         # Normalize traces
         norm = max(np.max(np.abs(trZ.data)), np.max(np.abs(trR.data)), np.max(np.abs(trT.data)))
+        if not np.isfinite(norm) or norm == 0:
+            qc_report.append(dict(id=key, status="rejected", reason="invalid or zero amplitude"))
+            continue
         for tr in [trZ, trR, trT]:
             tr.data /= norm
         comps["norm"] = norm
@@ -332,7 +359,8 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
             if factor > 1:
                 time = time[::factor]
                 dt = time[1] - time[0]
-            np.savetxt(os.path.join(output_dir, "time.csv"), time, delimiter=",")
+            if empirical_stf is None:
+                np.savetxt(os.path.join(output_dir, "time.csv"), time, delimiter=",")
 
         # Downsample data
         if factor > 1:
@@ -353,6 +381,7 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
         stlos.append(stlo)
         dists.append(dist_deg)
         bazs.append(baz)
+        trace_ids.append(key)
         kept_station_count += 1
 
         if noise_dir:
@@ -380,6 +409,7 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
     bazs = [bazs[i] for i in idx]
     stlas = [stlas[i] for i in idx]
     stlos = [stlos[i] for i in idx]
+    trace_ids = [trace_ids[i] for i in idx]
     if noise_dir:
         for comp in ["UZ", "UR", "UT"]:
             traces_noise[comp] = [traces_noise[comp][i] for i in idx]
@@ -387,12 +417,15 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
     # === REMOVE HIGH AMPLITUDE NOISE TRACES ===
     if noise_dir:
         outlier_indices = set()
+        noise_outliers = set()
+        snr_by_id = {}
         for comp in ["UZ", "UR", "UT"]:
             noise_matrix = np.column_stack(traces_noise[comp])
             max_amps = np.max(np.abs(noise_matrix), axis=0)
             threshold = np.median(max_amps) + 5 * np.std(max_amps)
             bad = np.where(max_amps > threshold)[0]
             outlier_indices.update(bad.tolist())
+            noise_outliers.update(bad.tolist())
 
         n_traces = len(traces["UZ"])
         for i in range(n_traces):
@@ -411,8 +444,13 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
             else:
                 snr_check = snr_vals[snr_component.upper()]
 
-            if snr_check < snr_threshold:
+            snr_by_id[trace_ids[i]] = float(snr_check)
+            if snr_threshold is not None and snr_check < snr_threshold:
                 outlier_indices.add(i)
+        for i in sorted(outlier_indices):
+            qc_report.append(dict(id=trace_ids[i], status="rejected",
+                                  reason="noise outlier" if i in noise_outliers else "SNR",
+                                  snr=snr_by_id[trace_ids[i]]))
         
         # Remove bad traces
         for comp in ["UZ", "UR", "UT"]:
@@ -423,8 +461,42 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
         bazs = [b for i, b in enumerate(bazs) if i not in outlier_indices]
         stlas = [s for i, s in enumerate(stlas) if i not in outlier_indices]
         stlos = [s for i, s in enumerate(stlos) if i not in outlier_indices]
+        trace_ids = [s for i, s in enumerate(trace_ids) if i not in outlier_indices]
+    else:
+        snr_by_id = {}
     print(f"[prep-earth] {len(dists)} stations retained after SNR/noise rejection.")
 
+    if not trace_ids:
+        raise ValueError("No receiver-array traces remain after SNR/noise rejection.")
+    reference_result = None
+    if empirical_stf is not None:
+        records = []
+        for trace_id, distance in zip(trace_ids, dists):
+            components = {}
+            for ch in ("Z", "R", "T"):
+                tr = stations[trace_id][f"{ch}_reference"].copy()
+                if factor > 1:
+                    tr.data = tr.data[::factor]
+                    tr.stats.delta *= factor
+                components[ch] = tr
+            records.append(ReferenceTrace(trace_id, components, float(distance), snr_by_id.get(trace_id)))
+        included_ids, stf, selection = select_receiver_reference(
+            records, dt, len(time), empirical_stf,
+        )
+        keep = [i for i, trace_id in enumerate(trace_ids) if trace_id in included_ids]
+        for i, trace_id in enumerate(trace_ids):
+            qc_report.append(dict(id=trace_id, status="kept" if i in keep else "rejected",
+                                  reason="selected" if i in keep else "interactive/replayed exclusion",
+                                  snr=snr_by_id.get(trace_id)))
+        for comp in ("UZ", "UR", "UT"):
+            traces[comp] = [traces[comp][i] for i in keep]
+            if traces_noise is not None:
+                traces_noise[comp] = [traces_noise[comp][i] for i in keep]
+        dists, bazs, stlas, stlos = [[values[i] for i in keep] for values in (dists, bazs, stlas, stlos)]
+        trace_ids = [trace_ids[i] for i in keep]
+        selection["qc"] = qc_report
+        reference_result = (stf, selection)
+    np.savetxt(os.path.join(output_dir, "time.csv"), time, delimiter=",")
 
     # Save output
     for comp in ["UZ", "UR", "UT"]:
@@ -486,6 +558,14 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
                np.column_stack([stlas, stlos]), delimiter=",", header="lat,lon", comments='')
     np.savetxt(os.path.join(output_dir, "eventinfo.csv"),
                np.column_stack([evla, evlo]), delimiter=",", header="evla,evlo", comments='')
+    with open(os.path.join(output_dir, "trace_ids.txt"), "w") as handle:
+        handle.write("\n".join(trace_ids) + "\n")
+
+    reference_manifest = None
+    if reference_result is not None:
+        reference_manifest = save_receiver_reference(
+            output_dir, *reference_result, freqs if isbp else None,
+        )
 
     if plot_summary:
         plot_traces = {
@@ -513,6 +593,7 @@ def prepare_inputs_from_sac(data_dir, isbp=False, isds=False, freqs=None, noise_
             cd_fits=plot_cd_fits,
         )
     print("[prep-earth] Done.")
+    return reference_manifest
 
 
 def _source_event_id_from_trace_path(path):

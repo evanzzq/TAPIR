@@ -6,6 +6,18 @@ import pytest
 from vespainv.cli import _resolve_prep_earth_args, _resolve_prep_source_earth_args
 
 
+def test_empirical_stf_flag_preserves_configured_depth_units(tmp_path):
+    from vespainv.cli import build_parser
+    config = tmp_path / "prep.yaml"
+    config.write_text("dataset:\n  input_dir: /tmp/in\n  output_dir: /tmp/out\n"
+                      "empirical_stf:\n  depth_unit: m\n  window: [-1, 4]\n")
+    args = build_parser().parse_args(["prep-earth", "--config", str(config), "--empirical-stf"])
+    resolved = _resolve_prep_earth_args(args)
+    assert resolved["empirical_stf"]["depth_unit"] == "m"
+    args = build_parser().parse_args(["prep-earth", "--config", str(config), "--no-empirical-stf"])
+    assert _resolve_prep_earth_args(args)["empirical_stf"] is False
+
+
 def test_resolve_prep_earth_args_allows_optional_processing_settings(tmp_path: Path):
     config_path = tmp_path / "prep.yaml"
     config_path.write_text(
