@@ -138,7 +138,7 @@ def test_processed_reference_skips_only_its_own_filter(tmp_path):
         str(tmp_path),
         True,
         "dGaussian",
-        None,
+        np.zeros((400, 1)),
         False,
         0.05,
         _resolve_stf_bandpass(params, str(tmp_path)),
@@ -191,6 +191,26 @@ def test_receiver_qc_and_manual_selection_keep_all_columns_in_sync(tmp_path):
     replay = reference_settings(dict(selection_file=str(output / "stf_selection.yaml")))
     assert replay["interactive"] is False
     assert replay["included_ids"] == ["TA.A"]
+
+    # Exercise the actual handoff from empirical SAC preparation to inversion.
+    from pathlib import Path
+    from vespainv.config import load_yaml_mapping
+    from vespainv.runner import run_config
+    from vespainv.stf import load_stf
+
+    config = load_yaml_mapping(Path(__file__).parents[1] / "configs/example_parameter_setup.yaml")
+    config["defaults"].update(
+        data_root=str(tmp_path), runs_root=str(tmp_path / "runs"),
+        totalSteps=8, burnInSteps=4, nSaveModels=2, num_chains=1,
+        maxN=2, minSpace=0.2,
+    )
+    config["experiments"] = [dict(dataset="out", runname="empirical_smoke")]
+    config_path = tmp_path / "run.yaml"
+    config_path.write_text(yaml.safe_dump(config))
+    run_config(config_path)
+    run = tmp_path / "runs/out/empirical_smoke"
+    np.testing.assert_array_equal(load_stf(run / "stf_used.csv"), load_stf(output / "stf.csv"))
+    assert np.isfinite(np.loadtxt(run / "log_likelihood.txt")).all()
 
 
 def test_editor_controls_share_the_export_selection():

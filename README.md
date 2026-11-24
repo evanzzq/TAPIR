@@ -19,6 +19,9 @@ For development:
 pip install -e .[dev]
 ```
 
+For local preparation followed by long Terrawulf runs, see
+[the Mac-to-Terra workflow](docs/mac-terra-workflow.md).
+
 For reproducible experiment environments, install the tested dependency set:
 
 ```bash

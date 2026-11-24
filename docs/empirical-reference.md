@@ -1,9 +1,10 @@
 # Empirical receiver-array references
 
 `prep-earth` can build a common empirical reference after the existing noise/SNR
-QC, using one station or a selected stack. Source-array wavelet extraction and
-inversion with per-event references are not implemented yet. Future references
-should be linked to stable event IDs rather than relying on column order alone.
+QC, using one station or a selected stack. TAPIR's inversion already accepts
+per-trace references for receiver and source arrays, but this selector exports
+one shared reference. Extracting and exporting per-trace references is a separate
+future extension; it should preserve stable station/event IDs and column order.
 
 Enable the optional preparation stage with `--empirical-stf` or a top-level
 `empirical_stf` mapping in the preparation YAML. See
