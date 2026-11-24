@@ -95,7 +95,25 @@ def _resolve_stf_bandpass(params: dict, dataset_dir: str):
         raise ValueError(
             f"Run bandpass {configured} does not match the prepared dataset bandpass {prepared}."
         )
-    return configured if configured is not None else prepared
+    resolved = configured if configured is not None else prepared
+    reference = manifest.get("reference_wavelet", {})
+    if params.get("man_stf") and reference.get("already_processed"):
+        import hashlib
+
+        matched = _normalize_bandpass(reference.get("bandpass"))
+        if resolved != matched:
+            raise ValueError(
+                "The empirical reference is already processed with a different bandpass; "
+                "rebuild it with matching data processing."
+            )
+        path = Path(dataset_dir) / "stf.csv"
+        if reference.get("sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
+            raise ValueError(
+                "stf.csv differs from the prepared empirical reference. Rebuild the reference "
+                "or remove the reference_wavelet manifest entry for a new unprocessed STF."
+            )
+        return None
+    return resolved
 
 
 def _filter_stf(stf, bandpass_hz):

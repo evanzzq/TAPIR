@@ -132,6 +132,7 @@ def write_dataset_manifest(
     bandpass,
     downsample_hz,
     time_window,
+    reference_wavelet=None,
 ) -> Path:
     """Record preparation choices needed by later inversion steps."""
     output_path = Path(output_dir) / "dataset.yaml"
@@ -145,6 +146,8 @@ def write_dataset_manifest(
             "time_window": list(time_window) if time_window is not None else None,
         },
     }
+    if reference_wavelet is not None:
+        manifest["reference_wavelet"] = reference_wavelet
     with output_path.open("w", encoding="utf-8") as handle:
         yaml.safe_dump(manifest, handle, sort_keys=False)
     return output_path

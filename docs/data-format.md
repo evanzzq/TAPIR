@@ -40,6 +40,16 @@ runner reads this value and applies it to the STF. For externally prepared Mars
 data, declare the same `bandpass: [fmin, fmax]` in the run YAML. If both the run
 config and an Earth dataset manifest supply passbands, they must match.
 
+Receiver preparation can optionally construct an empirical reference after QC;
+see [empirical-reference.md](empirical-reference.md). It writes `stf.csv`,
+`stf_selection.yaml`, and `trace_ids.txt` (one stable station ID per waveform
+column). The manifest's `reference_wavelet` entry records that this particular
+STF is already processed, its passband, and its SHA-256 digest. With `man_stf:
+true`, the runner verifies these values and skips a second bandpass. Generated
+wavelets and manual files without this entry retain the usual filtering behaviour.
+Replacing a recorded empirical `stf.csv` requires rebuilding it or removing the
+`reference_wavelet` entry if the replacement should be treated as unprocessed.
+
 ## Validation examples
 
 ```bash
