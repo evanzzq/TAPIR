@@ -1,21 +1,22 @@
-# Empirical receiver-array references
+# Empirical receiver- and source-array references
 
-`prep-earth` can build a common empirical reference after the existing noise/SNR
-QC, using one station or a selected stack. TAPIR's inversion already accepts
-per-trace references for receiver and source arrays, but this selector exports
-one shared reference. Extracting and exporting per-trace references is a separate
-future extension; it should preserve stable station/event IDs and column order.
+`prep-earth` and `prep-source-earth` can build empirical references after the
+existing noise/SNR QC. Choose one shared reference from a station/event or a
+selected stack, or one reference per retained seismogram with `mode: per_trace`.
+The latter exports STF columns in exactly the waveform/metadata column order.
 
 Enable the optional preparation stage with `--empirical-stf` or a top-level
 `empirical_stf` mapping in the preparation YAML. See
-`configs/example_prep_empirical_receiver.yaml`. The original noninteractive
+`configs/example_prep_empirical_receiver.yaml` and
+`configs/example_prep_empirical_source.yaml`. The original noninteractive
 preparation remains available when this setting is absent or false.
 
 ## Timing and processing
 
 The reference arrival is resolved in this order:
 
-1. `arrival_times: {NET.STA: seconds_from_input_start}` overrides.
+1. `arrival_times: {TRACE_ID: seconds_from_input_start}` overrides. Receiver IDs
+   are `NET.STA`; source IDs are the filename prefix before the first underscore.
 2. SAC `a` or `t0`–`t9` with a phase label matching `phase`. `pick_header: a`
    (or `t0`, etc.) explicitly selects a header even if it has no label.
 3. The earliest predicted arrival of `phase` from the chosen TauP `model`.
@@ -49,14 +50,21 @@ MacOSX or QtAgg. A notebook's inline backend and Agg cannot accept this review.
 - **Use/unuse** changes whether a kept station contributes to the reference.
 - Choose **single** to use the active kept station, or **stack** to average the
   selected contributors. **Use all kept** restores all contributors in stack mode.
+- Choose **per_trace** to export one STF for every kept station/event. Contribution
+  controls are unnecessary in this mode; use **Keep/drop** to exclude a trace.
 - Drag horizontally in the active-trace preview to choose the extraction window.
-  Its bounds apply relative to each station's reference arrival.
+  Its bounds apply relative to each trace's reference arrival. In shared modes
+  the window applies to all contributors; in per_trace mode it edits only the
+  active trace, while the YAML `window` remains the default for unedited traces.
 - **Refine alignment** enables bounded, signed cross-correlation alignment against
   the first contributor. `max_shift` sets the bound in seconds. No automatic
   polarity reversal is performed; **Flip polarity** changes the reference copy
   of the active trace only. Inspect alignment and polarity before accepting.
+  Refinement applies only to shared STFs and is disabled in per_trace mode:
+  each trace retains its own picked/predicted time zero.
 - The export preview shows the aligned contributor pulses in grey and the final
-  tapered, normalized reference in black.
+  tapered, normalized reference in black. In per_trace mode it shows the individual
+  exported STFs, with the active trace in black and others in grey.
 - **Save & finish** accepts the selection and exports. Closing the window cancels
   before dataset export. Existing output directories are not cleaned automatically.
 
@@ -71,12 +79,36 @@ padding preserves time zero for TAPIR's FFT forward model; it does not add signa
 The extraction window must be inside every contributor's available data and contain
 at least five samples. The padded reference must fit in the final inversion window.
 
+In per_trace mode, each pulse is baseline-corrected, peak-normalized, tapered,
+then peak-normalized again independently. Amplitude differences between the raw
+STF windows are therefore removed; fitted phase amplitudes refer to these unit-peak
+STFs. Signed polarity is preserved unless explicitly flipped. Different windows
+are zero-padded onto one symmetric time grid at the prepared sample interval.
+The same per-trace STF applies to all modeled phases and components for that trace.
+Observations and noise are never shifted or polarity-flipped by STF selection.
+
+For example, noninteractive trace-specific extraction can use:
+
+```yaml
+empirical_stf:
+  interactive: false
+  mode: per_trace
+  component: Z
+  window: [-2, 5]
+  refine_alignment: false
+  trace_windows:
+    NET.STA: [-1.5, 4]  # Use event IDs here for a source array.
+```
+
 ## Outputs and replay
 
-- `stf.csv`: `time,stf`, ready for `man_stf: true`.
+- `stf.csv`: `time,stf` for a shared reference; `time,stf_1,...,stf_N`
+  for multiple per-trace references, ready for `man_stf: true`.
 - `stf_selection.yaml`: settings, contributing/retained IDs, predicted or picked
-  arrivals, alignment shifts, processing, and QC exclusions.
-- `trace_ids.txt`: exported station IDs in exact waveform/metadata column order.
+  arrivals, alignment shifts, per-trace windows, processing, and QC exclusions.
+  `stf_trace_ids` records each per-trace amplitude column's identity.
+- `trace_ids.txt`: exported station/event IDs in exact waveform/metadata column order.
+- `source_event_ids.txt`: the same ordered event IDs for source arrays.
 - `dataset.yaml`: processing information and an empirical-reference identity.
 
 The runner recognizes the saved empirical reference and does not filter it again,
@@ -85,7 +117,7 @@ to prevent silently treating a replacement file as already processed. Original
 manual/generated STF behaviour is preserved for other datasets.
 
 For reproducible, noninteractive extraction, provide explicit `included_ids`,
-`contributors`, and `window` with `interactive: false`, or replay the saved choice:
+`window` (and `contributors` for shared modes) with `interactive: false`, or replay the saved choice:
 
 ```yaml
 empirical_stf:
@@ -113,7 +145,8 @@ python -m vespainv.stf_sweep \
 
 The output directory must be new. This command currently requires an untrimmed
 receiver dataset with `trace_ids.txt`, `stf_selection.yaml`, and its prepared
-component CSV. It interpolates the already-filtered observations at the saved
+component CSV and a shared selection (`single` or `stack`). Per-trace selections
+are rejected by this shared-window sweep tool. It interpolates the already-filtered observations at the saved
 arrival predictions plus saved alignment shifts. It does not filter observations
 or references again, rerun alignment, or change the data used by the inversion.
 

@@ -1,0 +1,31 @@
+workspace: workspace.yaml
+
+dataset:
+  input_dir: ${paths.downloads_root}/source_array_sac
+  noise_dir: ${paths.downloads_root}/source_array_noise
+  output_dir: ${paths.real_data_root}/source_empirical
+
+processing:
+  bandpass: [0.02, 0.5]
+  downsample_hz: 5
+
+qc:
+  snr_component: UZ
+  snr_threshold: 2
+  plot_summary: true
+
+empirical_stf:
+  interactive: true
+  phase: P
+  model: ak135
+  depth_unit: km
+  component: Z
+  mode: per_trace
+  window: [-2, 5]
+  view_window: [-10, 15]
+  refine_alignment: false
+  taper_fraction: 0.1
+  # Event IDs are the filename prefix before the first underscore,
+  # matching source_event_ids.txt and trace_ids.txt after sorting/QC.
+  # trace_windows:
+  #   EVENT_ID: [-1.5, 4.0]

@@ -5,6 +5,9 @@ release. Changes currently target version 0.1.0.
 
 ## 0.1.0 - Unreleased
 
+- Receiver/source SAC preparation can export one empirical STF per retained
+  trace, with individual windows, stable ID mapping, GUI review and saved replay.
+
 - Package and command-line interfaces for Earth and Mars inversions.
 - Earth receiver-array and source-array SAC preparation.
 - TAPIR-compatible dataset validation.

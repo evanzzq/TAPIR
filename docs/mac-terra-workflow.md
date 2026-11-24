@@ -1,9 +1,9 @@
 # Mac preparation and Terrawulf inversion
 
 Use the combined `codex/mac-terra-workflow` branch on both machines. It contains
-empirical receiver STF selection and reproducible window sweeps, the validated
-forward-model speedup, and shared/per-trace manual STF support. The selector
-currently exports one shared STF; per-trace extraction is a future extension.
+empirical receiver/source STF selection and reproducible shared receiver window
+sweeps, the validated forward-model speedup, and shared/per-trace manual STF
+support. Select `mode: per_trace` to export one STF per retained seismogram.
 
 ## Mac
 

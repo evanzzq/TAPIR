@@ -669,11 +669,17 @@ def prepare_source_inputs_from_sac(
     snr_threshold=None,
     twin=None,
     plot_summary=False,
+    empirical_stf=None,
 ):
     import os
     import numpy as np
     from glob import glob
     from obspy import read
+    from .empirical_stf import (
+        ReferenceTrace, reference_settings, select_receiver_reference, save_receiver_reference,
+    )
+
+    empirical_stf = reference_settings(empirical_stf)
 
     os.makedirs(output_dir, exist_ok=True)
     print(f"[prep-source-earth] Output directory: {output_dir}")
@@ -692,6 +698,14 @@ def prepare_source_inputs_from_sac(
 
     for f in sac_files:
         tr = read(f)[0]
+        reference_trace = None
+        if empirical_stf is not None:
+            if tr.stats.channel[-1].upper() not in valid_channels:
+                ignored_channel_count += 1
+                continue
+            if isbp and freqs:
+                tr.filter("bandpass", freqmin=freqs[0], freqmax=freqs[1], corners=2, zerophase=True)
+            reference_trace = tr.copy()
         if twin is not None:
             if not _trim_trace_to_available_window(
                 tr,
@@ -705,19 +719,23 @@ def prepare_source_inputs_from_sac(
         if ch not in valid_channels:
             ignored_channel_count += 1
             continue
-        if isbp and freqs:
+        if isbp and freqs and empirical_stf is None:
             tr.filter("bandpass", freqmin=freqs[0], freqmax=freqs[1], corners=2, zerophase=True)
 
         event_id = _source_event_id_from_trace_path(f)
         if event_id not in events:
             events[event_id] = {"Z": None, "R": None, "T": None, "norm": None}
         events[event_id][ch] = tr
+        if reference_trace is not None:
+            events[event_id][f"{ch}_reference"] = reference_trace
 
         if noise_dir:
             fbase, fext = os.path.splitext(os.path.basename(f))
             fnoise = os.path.join(noise_dir, fbase + ".noise" + fext)
             if os.path.exists(fnoise):
                 tr_noise = read(fnoise)[0]
+                if isbp and freqs and empirical_stf is not None:
+                    tr_noise.filter("bandpass", freqmin=freqs[0], freqmax=freqs[1], corners=2, zerophase=True)
                 if twin is not None:
                     if not _trim_trace_to_available_window(
                         tr_noise,
@@ -726,7 +744,7 @@ def prepare_source_inputs_from_sac(
                         warning_cache=trim_warning_cache,
                     ):
                         continue
-                if isbp and freqs:
+                if isbp and freqs and empirical_stf is None:
                     tr_noise.filter(
                         "bandpass",
                         freqmin=freqs[0],
@@ -777,7 +795,8 @@ def prepare_source_inputs_from_sac(
             if factor > 1:
                 time = time[::factor]
                 dt = time[1] - time[0]
-            np.savetxt(os.path.join(output_dir, "time.csv"), time, delimiter=",")
+            if empirical_stf is None:
+                np.savetxt(os.path.join(output_dir, "time.csv"), time, delimiter=",")
         elif len(trZ.data) != reference_npts or trZ.stats.delta != reference_dt:
             print(f"[prep-source-earth][WARN] Sampling mismatch for {event_id}; skipping.")
             continue
@@ -877,6 +896,34 @@ def prepare_source_inputs_from_sac(
     if not dists:
         raise ValueError("No source-array events remain after noise/SNR rejection.")
 
+    reference_result = None
+    if empirical_stf is not None:
+        records = []
+        for event_id, distance in zip(event_ids, dists):
+            components = {}
+            for ch in ("Z", "R", "T"):
+                tr = events[event_id][f"{ch}_reference"].copy()
+                if factor > 1:
+                    tr.data = tr.data[::factor]
+                    tr.stats.delta *= factor
+                components[ch] = tr
+            records.append(ReferenceTrace(event_id, components, float(distance)))
+        included_ids, stf, selection = select_receiver_reference(
+            records, dt, len(time), empirical_stf, array_type="source",
+        )
+        keep = [i for i, event_id in enumerate(event_ids) if event_id in included_ids]
+        selection["qc"] = [dict(id=event_id, status="kept" if i in keep else "rejected",
+                                reason="selected" if i in keep else "interactive/replayed exclusion")
+                           for i, event_id in enumerate(event_ids)]
+        for comp in ("UZ", "UR", "UT"):
+            traces[comp] = [traces[comp][i] for i in keep]
+            if traces_noise is not None:
+                traces_noise[comp] = [traces_noise[comp][i] for i in keep]
+        dists, bazs, evlas, evlos = [[values[i] for i in keep] for values in (dists, bazs, evlas, evlos)]
+        event_ids = [event_ids[i] for i in keep]
+        reference_result = (stf, selection)
+    np.savetxt(os.path.join(output_dir, "time.csv"), time, delimiter=",")
+
     for comp in ["UZ", "UR", "UT"]:
         np.savetxt(os.path.join(output_dir, f"{comp}.csv"), np.column_stack(traces[comp]), delimiter=",")
         if noise_dir:
@@ -910,6 +957,13 @@ def prepare_source_inputs_from_sac(
     )
     with open(os.path.join(output_dir, "source_event_ids.txt"), "w", encoding="utf-8") as handle:
         handle.write("\n".join(event_ids) + "\n")
+    with open(os.path.join(output_dir, "trace_ids.txt"), "w", encoding="utf-8") as handle:
+        handle.write("\n".join(event_ids) + "\n")
+    reference_manifest = None
+    if reference_result is not None:
+        reference_manifest = save_receiver_reference(
+            output_dir, *reference_result, freqs if isbp else None,
+        )
 
     print(f"[prep-source-earth] {len(dists)} events retained.")
     if plot_summary:
@@ -937,6 +991,7 @@ def prepare_source_inputs_from_sac(
             cd_fits=plot_cd_fits,
         )
     print("[prep-source-earth] Done.")
+    return reference_manifest
 
 
 def make_vespagram(

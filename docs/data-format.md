@@ -96,7 +96,7 @@ manifest is verified against its recorded passband and file SHA-256, then used
 without a second filter. This protection applies to the complete STF file,
 including all trace-specific columns.
 
-Receiver preparation can optionally construct an empirical reference after QC;
+Receiver and source preparation can optionally construct shared or per-trace empirical references after QC;
 see [empirical-reference.md](empirical-reference.md). It writes `stf.csv`,
 `stf_selection.yaml`, and `trace_ids.txt` (one stable station ID per waveform
 column). The manifest's `reference_wavelet` entry records that this particular

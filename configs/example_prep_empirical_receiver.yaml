@@ -20,9 +20,12 @@ empirical_stf:
   model: ak135
   depth_unit: km  # Set m explicitly for nonstandard SAC depths stored in metres.
   component: Z
-  mode: stack
+  mode: stack  # single, stack, or per_trace (one STF per retained seismogram)
   window: [-2, 5]
   view_window: [-10, 15]
   refine_alignment: false
   max_shift: 1.0
   taper_fraction: 0.1
+  # In per_trace mode, window is the default and dragging edits the active trace.
+  # trace_windows:
+  #   NET.STA: [-1.5, 4.0]

@@ -125,10 +125,14 @@ def _resolve_prep_source_earth_args(args) -> dict:
         "snr_component": args.snr_component,
         "snr_threshold": args.snr_threshold,
         "plot_summary": args.plot_summary,
+        "empirical_stf": getattr(args, "empirical_stf", None),
     }
     resolved = {}
     for key, cli_value in cli_values.items():
         resolved[key] = cli_value if cli_value is not None else config.get(key)
+
+    if getattr(args, "empirical_stf", None) is True and isinstance(config.get("empirical_stf"), dict):
+        resolved["empirical_stf"] = config["empirical_stf"]
 
     missing = [key for key in ("data_dir", "output_dir") if not resolved.get(key)]
     if missing:
@@ -215,7 +219,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     prep_parser.add_argument(
         "--empirical-stf", action=argparse.BooleanOptionalAction, default=None,
-        help="Interactively construct a common empirical reference after receiver-array QC",
+        help="Select shared or per-trace empirical STFs after receiver-array QC",
     )
 
     prep_source_parser = subparsers.add_parser(
@@ -262,6 +266,10 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         help="Optional SNR threshold for outlier rejection when noise data are provided",
+    )
+    prep_source_parser.add_argument(
+        "--empirical-stf", action=argparse.BooleanOptionalAction, default=None,
+        help="Select shared or per-event empirical STFs after source-array QC",
     )
     prep_source_parser.add_argument(
         "--plot-summary",
@@ -342,7 +350,7 @@ def main(argv: list[str] | None = None) -> None:
         )
     elif args.command == "prep-source-earth":
         prep_args = _resolve_prep_source_earth_args(args)
-        prepare_source_inputs_from_sac(
+        reference_manifest = prepare_source_inputs_from_sac(
             data_dir=prep_args["data_dir"],
             isbp=prep_args["bandpass"] is not None,
             isds=prep_args["downsample_hz"],
@@ -353,6 +361,7 @@ def main(argv: list[str] | None = None) -> None:
             snr_threshold=prep_args["snr_threshold"],
             twin=prep_args["time_window"],
             plot_summary=prep_args["plot_summary"],
+            empirical_stf=prep_args["empirical_stf"],
         )
         write_dataset_manifest(
             prep_args["output_dir"],
@@ -361,6 +370,7 @@ def main(argv: list[str] | None = None) -> None:
             bandpass=prep_args["bandpass"],
             downsample_hz=prep_args["downsample_hz"],
             time_window=prep_args["time_window"],
+            reference_wavelet=reference_manifest,
         )
     elif args.command == "plot-prep":
         output_dir = args.output_dir

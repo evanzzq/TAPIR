@@ -1,4 +1,4 @@
-"""Receiver-array reference selection; waveform construction also works without a GUI."""
+"""Shared or trace-specific empirical references, with optional interactive review."""
 
 from __future__ import annotations
 
@@ -8,6 +8,8 @@ import hashlib
 
 import numpy as np
 import yaml
+
+from .stf import stf_header, validate_stf_table
 
 
 @dataclass
@@ -44,18 +46,27 @@ def reference_settings(settings):
         max_shift=1.0,
         arrival_times={},
         polarities={},
+        trace_windows={},
     )
     defaults.update(settings)
     defaults["component"] = str(defaults["component"]).upper().removeprefix("U")
     if defaults["component"] not in ("Z", "R", "T"):
         raise ValueError("empirical_stf.component must be Z, R, or T.")
-    if defaults["mode"] not in ("single", "stack"):
-        raise ValueError("empirical_stf.mode must be single or stack.")
+    if defaults["mode"] not in ("single", "stack", "per_trace"):
+        raise ValueError("empirical_stf.mode must be single, stack, or per_trace.")
     for key in ("window", "view_window"):
         value = np.asarray(defaults[key], dtype=float)
         if value.shape != (2,) or not np.all(np.isfinite(value)) or value[0] >= value[1]:
             raise ValueError(f"empirical_stf.{key} must be an increasing finite pair.")
         defaults[key] = value.tolist()
+    if not isinstance(defaults["trace_windows"], dict):
+        raise ValueError("trace_windows must map trace IDs to [start, end] windows.")
+    defaults["trace_windows"] = dict(defaults["trace_windows"])
+    for trace_id, window in defaults["trace_windows"].items():
+        value = np.asarray(window, dtype=float)
+        if value.shape != (2,) or not np.isfinite(value).all() or value[0] >= value[1]:
+            raise ValueError(f"Invalid trace_windows entry for {trace_id}.")
+        defaults["trace_windows"][trace_id] = value.tolist()
     if defaults["depth_unit"] not in ("km", "m"):
         raise ValueError("empirical_stf.depth_unit must be km or m.")
     if not 0 <= float(defaults["taper_fraction"]) <= 0.5:
@@ -147,10 +158,50 @@ def build_reference(records, arrivals, dt, settings):
     from scipy.signal.windows import tukey
 
     by_id = {record.trace_id: record for record in records}
+    if len(by_id) != len(records):
+        raise ValueError("Reference trace IDs must be unique.")
+    if not np.isfinite(dt) or dt <= 0:
+        raise ValueError("Reference sample interval must be positive and finite.")
     included = settings.get("included_ids", list(by_id))
-    contributors = settings.get("contributors", included)
+    if not set(settings.get("trace_windows", {})) <= by_id.keys():
+        raise ValueError("trace_windows contains IDs missing from the QC-retained traces.")
     if not included or len(set(included)) != len(included) or not set(included) <= by_id.keys():
         raise ValueError("included_ids must be nonempty, unique IDs of QC-retained traces.")
+    if settings["mode"] == "per_trace":
+        if settings["refine_alignment"]:
+            raise ValueError("Refine alignment is for shared STFs; disable it in per_trace mode.")
+        # Always follow observation order, regardless of YAML/review selection order.
+        trace_ids = [r.trace_id for r in records if r.trace_id in included]
+        pulses, grids = [], {}
+        for trace_id in trace_ids:
+            lo, hi = settings.get("trace_windows", {}).get(trace_id, settings["window"])
+            grid = np.arange(int(np.ceil(lo / dt - 1e-9)), int(np.floor(hi / dt + 1e-9)) + 1) * dt
+            if len(grid) < 5:
+                raise ValueError(f"Select at least five samples for {trace_id}.")
+            try:
+                pulse = _normalized_pulse(
+                    extract_segment(by_id[trace_id].components[settings["component"]], arrivals[trace_id], grid),
+                    settings["polarities"].get(trace_id, 1),
+                )
+            except ValueError as exc:
+                raise ValueError(f"{trace_id}: {exc}") from exc
+            pulse *= tukey(len(grid), alpha=2 * float(settings["taper_fraction"]))
+            scale = np.max(np.abs(pulse))
+            if not np.isfinite(scale) or scale == 0:
+                raise ValueError(f"Tapered reference is zero for {trace_id}.")
+            pulses.append(pulse / scale)
+            grids[trace_id] = grid
+        half = max(int(np.rint(max(abs(g[0]), abs(g[-1])) / dt)) for g in grids.values())
+        time = np.arange(-half, half + 1) * dt
+        stf = np.column_stack((time, np.zeros((len(time), len(trace_ids)))))
+        for column, trace_id in enumerate(trace_ids, 1):
+            stf[np.rint(grids[trace_id] / dt).astype(int) + half, column] = pulses[column - 1]
+        return stf, dict(
+            contributors=trace_ids, stf_trace_ids=trace_ids,
+            alignment_shifts_s={key: 0.0 for key in trace_ids},
+            trace_window_samples_s={key: grid.tolist() for key, grid in grids.items()},
+        )
+    contributors = settings.get("contributors", included)
     if (
         not contributors
         or len(set(contributors)) != len(contributors)
@@ -199,7 +250,7 @@ def build_reference(records, arrivals, dt, settings):
     )
 
 
-def select_receiver_reference(records, dt, n_samples, settings):
+def select_receiver_reference(records, dt, n_samples, settings, array_type="receiver"):
     """Resolve reference arrivals, optionally review, and return an extraction result."""
     settings = reference_settings(settings)
     from obspy.taup import TauPyModel
@@ -219,17 +270,22 @@ def select_receiver_reference(records, dt, n_samples, settings):
         editor.show()
         settings = editor.settings
     stf, diagnostics = build_reference(records, arrivals, dt, settings)
+    settings["included_ids"] = [r.trace_id for r in records if r.trace_id in settings["included_ids"]]
     if len(stf) > n_samples:
         raise ValueError("Padded reference wavelet is longer than the inversion data window.")
     replay = {**settings, "interactive": False}
     metadata = dict(
         schema_version=1,
-        array_type="receiver",
+        array_type=array_type,
         settings=replay,
         arrivals=provenance,
         alignment_shifts_s=diagnostics["alignment_shifts_s"],
         baseline="mean of up to five samples at each selected window edge",
-        time_zero="reference pick/prediction; stack aligned to first contributor",
+        time_zero=("each trace's reference pick/prediction" if settings["mode"] == "per_trace"
+                   else "reference pick/prediction; stack aligned to first contributor"),
+        normalization="baseline-corrected and peak-normalized; tapered and peak-normalized again",
+        stf_trace_ids=diagnostics.get("stf_trace_ids"),
+        trace_window_samples_s=diagnostics.get("trace_window_samples_s"),
         traces=[dict(id=r.trace_id, distance_deg=r.distance, snr=r.snr) for r in records],
     )
     return settings["included_ids"], stf, metadata
@@ -239,7 +295,13 @@ def save_receiver_reference(output_dir, stf, metadata, bandpass):
     """Write the waveform plus reproducible selection; manifest stores processing + identity."""
     root = Path(output_dir)
     path = root / "stf.csv"
-    np.savetxt(path, stf, delimiter=",", header="time,stf", comments="")
+    trace_ids = metadata.get("stf_trace_ids")
+    stf = validate_stf_table(stf, n_traces=len(trace_ids) if trace_ids else None)
+    if trace_ids and len(trace_ids) != stf.shape[1] - 1:
+        raise ValueError("STF trace IDs must match the amplitude columns exactly.")
+    if stf.shape[1] > 2 and (not trace_ids or len(trace_ids) != stf.shape[1] - 1):
+        raise ValueError("Per-trace STF export needs an ID for every amplitude column.")
+    np.savetxt(path, stf, delimiter=",", header=stf_header(stf), comments="")
     metadata["processing"] = dict(bandpass=list(bandpass) if bandpass else None)
     with (root / "stf_selection.yaml").open("w") as handle:
         yaml.safe_dump(metadata, handle, sort_keys=False)
@@ -250,6 +312,7 @@ def save_receiver_reference(output_dir, stf, metadata, bandpass):
         bandpass=list(bandpass) if bandpass else None,
         sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
         selection_file="stf_selection.yaml",
+        stf_trace_ids=trace_ids,
     )
 
 
@@ -261,7 +324,8 @@ class ReferenceEditor:
         from matplotlib.widgets import Button, RadioButtons, CheckButtons
 
         self.records, self.arrivals, self.dt = records, arrivals, dt
-        self.settings = {**settings, "polarities": dict(settings["polarities"])}
+        self.settings = {**settings, "polarities": dict(settings["polarities"]),
+                         "trace_windows": dict(settings.get("trace_windows", {}))}
         self.settings["included_ids"] = list(
             settings.get("included_ids", [r.trace_id for r in records])
         )
@@ -292,9 +356,9 @@ class ReferenceEditor:
             button.on_clicked(callback)
             self.buttons.append(button)
         self.mode = RadioButtons(
-            self.fig.add_axes([0.10, 0.125, 0.17, 0.065]),
-            ("single", "stack"),
-            active=(settings["mode"] == "stack"),
+            self.fig.add_axes([0.10, 0.12, 0.17, 0.08]),
+            ("single", "stack", "per_trace"),
+            active=("single", "stack", "per_trace").index(settings["mode"]),
         )
         self.mode.on_clicked(self.change_mode)
         self.refine = CheckButtons(
@@ -351,7 +415,9 @@ class ReferenceEditor:
         self.preview.set(
             xlim=view, title=f"Active: {self.active}", xlabel="Seconds relative to arrival"
         )
-        self.preview.axvspan(*self.settings["window"], color="tab:blue", alpha=0.15)
+        window = (self.settings["trace_windows"].get(self.active, self.settings["window"])
+                  if self.settings["mode"] == "per_trace" else self.settings["window"])
+        self.preview.axvspan(*window, color="tab:blue", alpha=0.15)
         self.span = SpanSelector(
             self.preview,
             self.select_window,
@@ -360,18 +426,25 @@ class ReferenceEditor:
             props=dict(alpha=0.2, facecolor="tab:blue"),
             interactive=True,
         )
-        self.span.extents = tuple(self.settings["window"])
+        self.span.extents = tuple(window)
         record = next(r for r in self.records if r.trace_id == self.active)
         snr = "unavailable" if record.snr is None else f"{record.snr:.2f}"
-        message = f"Active {self.active} | SNR {snr} | {len(included)} kept | window {self.settings['window']} s"
+        message = f"Active {self.active} | SNR {snr} | {len(included)} kept | window {window} s"
         try:
             stf, diag = build_reference(self.records, self.arrivals, self.dt, self.settings)
-            grid = diag["window_samples_s"]
-            for pulse in diag["aligned_pulses"]:
-                self.output.plot(grid, pulse, color="0.75", lw=0.5)
-            self.output.plot(stf[:, 0], stf[:, 1], color="black", lw=1.5)
+            if self.settings["mode"] == "per_trace":
+                for column, trace_id in enumerate(diag["stf_trace_ids"], 1):
+                    self.output.plot(stf[:, 0], stf[:, column],
+                                     color="black" if trace_id == self.active else "0.75",
+                                     lw=1.5 if trace_id == self.active else 0.5)
+            else:
+                grid = diag["window_samples_s"]
+                for pulse in diag["aligned_pulses"]:
+                    self.output.plot(grid, pulse, color="0.75", lw=0.5)
+                self.output.plot(stf[:, 0], stf[:, 1], color="black", lw=1.5)
             self.output.set(
-                title=f"Export preview ({len(diag['contributors'])} contributors)",
+                title=(f"Export: {len(diag['contributors'])} trace STFs" if self.settings["mode"] == "per_trace"
+                       else f"Export preview ({len(diag['contributors'])} contributors)"),
                 xlabel="Reference-wavelet time (s)",
             )
         except ValueError as exc:
@@ -399,6 +472,10 @@ class ReferenceEditor:
         self.refresh()
 
     def toggle_use(self, _):
+        if self.settings["mode"] == "per_trace":
+            self.status.set_text("Per-trace mode exports one STF for every kept trace; use Keep/drop.")
+            self.fig.canvas.draw_idle()
+            return
         if self.active in self.settings["included_ids"]:
             ids = list(self.settings["contributors"])
             if self.settings["mode"] == "single":
@@ -423,6 +500,8 @@ class ReferenceEditor:
 
     def change_mode(self, mode):
         self.settings["mode"] = mode
+        if mode == "per_trace" and self.settings["refine_alignment"]:
+            self.refine.set_active(0)
         if mode == "single":
             self.settings["contributors"] = (
                 [self.active]
@@ -432,11 +511,17 @@ class ReferenceEditor:
         self.refresh()
 
     def toggle_refine(self, _):
-        self.settings["refine_alignment"] = not self.settings["refine_alignment"]
+        if self.settings["mode"] == "per_trace" and self.refine.get_status()[0]:
+            self.refine.set_active(0)
+            return
+        self.settings["refine_alignment"] = bool(self.refine.get_status()[0])
         self.refresh()
 
     def select_window(self, lo, hi):
-        self.settings["window"] = [float(lo), float(hi)]
+        if self.settings["mode"] == "per_trace":
+            self.settings["trace_windows"][self.active] = [float(lo), float(hi)]
+        else:
+            self.settings["window"] = [float(lo), float(hi)]
         self.refresh()
 
     def finish(self, _):

@@ -35,6 +35,8 @@ def construct_windows(time, observations, trace_ids, selection, start, ends, tap
     if not np.isfinite(taper_seconds) or taper_seconds <= 0:
         raise ValueError("taper_seconds must be positive and finite.")
     settings = selection["settings"]
+    if settings["mode"] not in ("single", "stack"):
+        raise ValueError("This sweep constructs shared STFs; per_trace selections are not supported.")
     contributors = settings["contributors"]
     if settings["mode"] == "single":
         contributors = contributors[:1]
