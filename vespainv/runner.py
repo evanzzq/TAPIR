@@ -21,6 +21,7 @@ from .utils import (
 )
 from .validation import validate_dataset
 from .stf import load_stf, stf_header, validate_stf_table
+from .trace_time_shifts import load_trace_time_shifts, save_trace_time_shifts, trace_time_shifts
 
 
 def _run_chain(chain_id: int, exp_vars: dict) -> list:
@@ -354,6 +355,12 @@ def run_experiment(params: dict) -> None:
         f"Validated dataset: {validation.n_samples} samples, "
         f"{validation.n_traces} traces, {validation.sampling_rate_hz:g} Hz."
     )
+    shifts_file = params.get("trace_time_shifts_file")
+    shift_ids, fixed_shifts = None, None
+    if shifts_file is not None:
+        if not isinstance(shifts_file, (str, Path)) or not str(shifts_file).strip():
+            raise ValueError("trace_time_shifts_file must be a CSV path or null.")
+        shift_ids, fixed_shifts = load_trace_time_shifts(shifts_file, dataset_dir, validation.n_traces)
 
     U_obs, Utime, CDinv, CD_sqrt_inv, metadata, is3c = prep_data(
         data_root, data_name, is3c, comp, CDopt, is_mars=isMars, src_array=srcArray
@@ -378,7 +385,17 @@ def run_experiment(params: dict) -> None:
         **{name: params.get(name) for name in _PRIOR_RUN_OPTIONS},
     )
     save_dir = os.path.join(runs_root, data_name, runname)
+    old_bk_path = Path(save_dir) / "Bookkeeping.pkl"
+    if old_bk_path.exists():
+        with old_bk_path.open("rb") as handle:
+            old_bk = pickle.load(handle)
+        old_shifts = trace_time_shifts(old_bk, validation.n_traces)
+        new_shifts = np.zeros(validation.n_traces) if fixed_shifts is None else fixed_shifts
+        if not np.array_equal(old_shifts, new_shifts):
+            raise ValueError("Trace time shifts differ from the saved run; choose a new runname.")
     os.makedirs(save_dir, exist_ok=True)
+    if fixed_shifts is not None:
+        save_trace_time_shifts(Path(save_dir) / "trace_time_shifts_used.csv", shift_ids, fixed_shifts)
     np.savetxt(
         os.path.join(save_dir, "stf_used.csv"), stf,
         delimiter=",", header=stf_header(stf), comments="",
@@ -418,6 +435,8 @@ def run_experiment(params: dict) -> None:
         pref=pref,
         fstVp=fstVp,
         fstVs=fstVs,
+        trace_time_shifts=fixed_shifts,
+        trace_ids=tuple(shift_ids) if shift_ids is not None else None,
     )
     bk_path = os.path.join(save_dir, "Bookkeeping.pkl")
     if not os.path.exists(bk_path):

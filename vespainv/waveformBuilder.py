@@ -3,6 +3,7 @@ from scipy.fft import fft, ifft, fftfreq, rfft, irfft, rfftfreq
 from scipy.interpolate import interp1d
 from vespainv.model import VespaModel, Prior, Bookkeeping
 from vespainv.stf import validate_stf_samples
+from vespainv.trace_time_shifts import trace_time_shifts
 from vespainv.utils import dest_point, apply_constant_phase_shift
 
 
@@ -58,6 +59,7 @@ def _shifted_spectra(model, metadata, time, stf_time, stf, bookkeeping):
     stf_W = _stf_spectra(stf, stf_time, time, len(metadata), real=True)
     freqs = rfftfreq(len(time), stf_time[1] - stf_time[0])
     tshift = model.arr[None, :] + model.slw[None, :] * _trace_offsets(metadata, bookkeeping)[:, None]
+    tshift += trace_time_shifts(bookkeeping, len(metadata))[:, None]
     return stf_W, freqs, np.exp(-2j * np.pi * freqs * (tshift[:, :, None] - stf_time[-1]))
 
 
@@ -140,6 +142,7 @@ def _create_U_from_model_freqdomain_loop(
     spectra = _stf_spectra(stf, stf_time, time, n_traces, real=False)
     stf_freq = fftfreq(len(time), stf_time[1]-stf_time[0])
 
+    fixed_delays = trace_time_shifts(bookkeeping, n_traces)
     for itrace in range(n_traces):
         stf_W = spectra[0 if len(spectra) == 1 else itrace]
         trLat, trLon = _metadata_to_latlon(metadata[itrace], srcLat, srcLon, isMars or srcArray)
@@ -166,7 +169,7 @@ def _create_U_from_model_freqdomain_loop(
 
         for iph in range(model.Nphase):
             slow_x, slow_y = _reference_slowness_components(model.slw[iph], srcArray, refBaz)
-            tshift = model.arr[iph] + (slow_x * dx + slow_y * dy)
+            tshift = model.arr[iph] + (slow_x * dx + slow_y * dy) + fixed_delays[itrace]
 
             wvlt_W = tstar_conv_freqdomain(stf_W, stf_freq, model.atts[iph]) if fitAtts else stf_W
 
@@ -274,6 +277,7 @@ def _create_U_from_model_3c_freqdomain_loop(
     spectra = _stf_spectra(stf, stf_time, time, n_traces, real=False)
     stf_freq = fftfreq(len(time), stf_time[1]-stf_time[0])
 
+    fixed_delays = trace_time_shifts(bookkeeping, n_traces)
     for itrace in range(n_traces):
         stf_W = spectra[0 if len(spectra) == 1 else itrace]
         trLat, trLon = _metadata_to_latlon(metadata[itrace], srcLat, srcLon, isMars or srcArray)
@@ -304,7 +308,7 @@ def _create_U_from_model_3c_freqdomain_loop(
             rel_slow = model.slw[iph]
             abs_slow = rel_slow + pref
             slow_x, slow_y = _reference_slowness_components(rel_slow, srcArray, refBaz)
-            tshift = model.arr[iph] + (slow_x * dx + slow_y * dy)
+            tshift = model.arr[iph] + (slow_x * dx + slow_y * dy) + fixed_delays[itrace]
 
             P_wvlt_W = tstar_conv_freqdomain(stf_W, stf_freq, model.atts[iph]*0.25) if fitAtts else stf_W
             S_wvlt_W = tstar_conv_freqdomain(stf_W, stf_freq, model.atts[iph]) if fitAtts else stf_W

@@ -18,6 +18,10 @@ defaults:
   maxN: 2
   # Manual stf.csv: time column + one shared STF or one amplitude column per trace.
   man_stf: true
+  # Optional CSV: trace_id,time_shift_s; requires dataset trace_ids.txt.
+  # Positive seconds delay every synthetic phase/component for that trace.
+  # Paths are relative to this YAML file. Omission/null means zero shifts.
+  trace_time_shifts_file: null
   bandpass: null
   ampRange: [-1.0, 1.0]
   slwRange: [0.0, 2.0]

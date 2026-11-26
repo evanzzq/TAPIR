@@ -31,6 +31,9 @@ class Bookkeeping:
     # When omitted, preserve the historical Earth/Mars defaults.
     fstVp:           float = None
     fstVs:           float = None
+    # Fixed synthetic delays in waveform-column order; positive = later (seconds).
+    trace_time_shifts: np.ndarray = None
+    trace_ids: tuple = None
 
     def __post_init__(self):
         if self.burnInSteps is None:
